@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Grupo Norus",
+    "slug": "gruponorus",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "gruponorus",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#0B3C5D",
+    "splash": {
+      "backgroundColor": "#0B3C5D",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "bundleIdentifier": "com.gruponorus.app"
+    },
+    "android": {
+      "package": "com.gruponorus.app"
+    }
+  }
+}
