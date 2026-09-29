@@ -8,6 +8,12 @@ export function habLabel(h) {
   return String(h);
 }
 
+export function tipoLabel(t) {
+  if (t === null || t === undefined || t === '') return '—';
+  if (typeof t === 'object') return t.nombre ?? '—';
+  return String(t);
+}
+
 export function userLabel(u) {
   if (!u) return '—';
   if (typeof u === 'object') {

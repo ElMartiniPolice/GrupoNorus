@@ -1,7 +1,7 @@
 /**
  * ui.js — Componentes compartidos con la identidad NORUS.
  * Manual de Marca: #0B3C5D / #328CC1 / #B3CDE0 / #ECECEC / #FFC858 / #F25F5C.
- * Tipografías: Cormorant SC (títulos), EB Garamond (serif), Lato (cuerpo).
+ * Tipografías: Cormorant SC (títulos), Lato (cuerpo y UI).
  */
 import React from 'react';
 import {
@@ -69,6 +69,15 @@ export function Card({ children, style, onPress }) {
     >
       {children}
     </Wrapper>
+  );
+}
+
+/** Botón flotante de acción (FAB) dorado del manual. */
+export function Fab({ onPress }) {
+  return (
+    <TouchableOpacity style={styles.fab} onPress={onPress} activeOpacity={0.85}>
+      <Text style={styles.fabText}>+</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -291,6 +300,23 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  fabText: { fontSize: 30, color: colors.primary, fontFamily: fonts.bodyBold },
   badge: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,

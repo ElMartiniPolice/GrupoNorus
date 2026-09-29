@@ -19,15 +19,9 @@ import {
   SectionTitle,
   makeErrorHandler,
 } from '../../components/ui';
-import { habLabel } from '../../utils/labels';
+import { habLabel, tipoLabel } from '../../utils/labels';
 
 const ESTADOS = ['TODAS', 'DISPONIBLE', 'OCUPADA', 'LIMPIEZA', 'MANTENCION'];
-
-function tipoLabel(t) {
-  if (t === null || t === undefined || t === '') return '—';
-  if (typeof t === 'object') return t.nombre ?? '—';
-  return String(t);
-}
 
 export default function RoomsScreen({ navigation }) {
   const { logout } = useAuth();
@@ -139,7 +133,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   titulo: {
-    fontFamily: fonts.serif,
+    fontFamily: fonts.title,
     fontSize: 17,
     color: colors.primary,
     flex: 1,

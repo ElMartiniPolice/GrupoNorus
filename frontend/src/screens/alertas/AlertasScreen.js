@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   titulo: {
-    fontFamily: fonts.serif,
+    fontFamily: fonts.title,
     fontSize: 17,
     color: colors.primary,
     flex: 1,

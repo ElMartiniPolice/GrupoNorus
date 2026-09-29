@@ -13,6 +13,7 @@ import {
   Card,
   EmptyState,
   ErrorBanner,
+  Fab,
   Loading,
   Screen,
   SectionTitle,
@@ -106,13 +107,7 @@ export default function IncidenciasScreen({ navigation }) {
           </Card>
         ))}
       </Screen>
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('CreateIncident')}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      <Fab onPress={() => navigation.navigate('CreateIncident')} />
     </View>
   );
 }
@@ -138,7 +133,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     gap: spacing.sm,
   },
-  titulo: { fontFamily: fonts.serif, fontSize: 17, color: colors.primary, flex: 1 },
+  titulo: { fontFamily: fonts.title, fontSize: 17, color: colors.primary, flex: 1 },
   meta: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, marginBottom: 6 },
   cardFoot: {
     flexDirection: 'row',
@@ -147,21 +142,4 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   sla: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, flex: 1, textAlign: 'right' },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  fabText: { fontSize: 30, color: colors.primary, fontFamily: fonts.bodyBold },
 });

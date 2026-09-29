@@ -30,15 +30,9 @@ import {
   formatFecha,
   makeErrorHandler,
 } from '../../components/ui';
-import { habLabel } from '../../utils/labels';
+import { habLabel, tipoLabel } from '../../utils/labels';
 
 const ESTADOS_HABITACION = ['DISPONIBLE', 'OCUPADA', 'LIMPIEZA', 'MANTENCION'];
-
-function tipoLabel(t) {
-  if (t === null || t === undefined || t === '') return '—';
-  if (typeof t === 'object') return t.nombre ?? '—';
-  return String(t);
-}
 
 function evidenciaUri(e) {
   const img = e?.imagen;
@@ -364,7 +358,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   subtitulo: {
-    fontFamily: fonts.serif,
+    fontFamily: fonts.title,
     fontSize: 17,
     color: colors.primary,
     flex: 1,
@@ -418,7 +412,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 110,
     borderRadius: radius.md,
-    backgroundColor: '#ECECEC',
+    backgroundColor: colors.surface,
   },
   fotoTitulo: {
     fontFamily: fonts.body,

@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   kpiTitle: {
-    fontFamily: fonts.serif,
+    fontFamily: fonts.title,
     fontSize: 17,
     color: colors.primary,
     marginBottom: spacing.sm,

@@ -14,6 +14,7 @@ import {
   Card,
   EmptyState,
   ErrorBanner,
+  Fab,
   Loading,
   Screen,
   SectionTitle,
@@ -106,13 +107,7 @@ export default function UsuariosScreen({ navigation }) {
         ))}
       </Screen>
 
-      <TouchableOpacity
-        style={styles.fab}
-        activeOpacity={0.85}
-        onPress={() => navigation.navigate('UsuarioForm')}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      <Fab onPress={() => navigation.navigate('UsuarioForm')} />
     </View>
   );
 }
@@ -155,7 +150,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   titulo: {
-    fontFamily: fonts.serif,
+    fontFamily: fonts.title,
     fontSize: 17,
     color: colors.primary,
     flex: 1,
@@ -171,26 +166,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  fabText: {
-    fontSize: 30,
-    color: colors.primary,
-    fontFamily: fonts.bodyBold,
   },
 });
