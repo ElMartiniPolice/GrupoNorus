@@ -48,7 +48,7 @@ function fechaISO(d) {
 
 export default function RoomDetailScreen({ route }) {
   const { id } = route.params;
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const esAdmin = user?.rol_nombre === 'ADMINISTRADOR';
   const esRecepcion = user?.rol_nombre === 'RECEPCION';
   const esOperario = user?.rol_nombre === 'OPERARIO';

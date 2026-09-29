@@ -113,13 +113,12 @@ export default function IncidenciaDetailScreen({ route }) {
   if (!inc && !error) return <Loading label="Cargando incidencia…" />;
 
   const estado = inc ? estadoInc(inc) : '';
-  const esOperario = true; // atender/resolver corresponde al personal interno
 
   return (
     <Screen>
       {error ? <ErrorBanner message={error} /> : null}
       {msg ? (
-        <View style={styles.okBanner}>
+        <View style={styles.okBanner} accessibilityRole="alert">
           <Text style={styles.okText}>{msg}</Text>
         </View>
       ) : null}
@@ -180,7 +179,12 @@ export default function IncidenciaDetailScreen({ route }) {
               return (
                 <View key={ev.id} style={styles.evItem}>
                   {uri ? (
-                    <Image source={{ uri }} style={styles.evImg} />
+                    <Image
+                      source={{ uri }}
+                      style={styles.evImg}
+                      accessibilityRole="image"
+                      accessibilityLabel={`Foto de evidencia #${ev.id}`}
+                    />
                   ) : (
                     <View style={[styles.evImg, styles.evPlaceholder]}>
                       <Text style={styles.evPlaceholderText}>?</Text>

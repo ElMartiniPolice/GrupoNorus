@@ -107,7 +107,7 @@ export default function UsuariosScreen({ navigation }) {
         ))}
       </Screen>
 
-      <Fab onPress={() => navigation.navigate('UsuarioForm')} />
+      <Fab label="Crear usuario" onPress={() => navigation.navigate('UsuarioForm')} />
     </View>
   );
 }

@@ -93,7 +93,7 @@ export default function TasksScreen({ navigation }) {
           </Card>
         ))}
       </Screen>
-      {!esOperario && <Fab onPress={() => navigation.navigate('CreateTask')} />}
+      {!esOperario && <Fab label="Crear tarea" onPress={() => navigation.navigate('CreateTask')} />}
     </View>
   );
 }

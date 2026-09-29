@@ -107,7 +107,7 @@ export default function IncidenciasScreen({ navigation }) {
           </Card>
         ))}
       </Screen>
-      <Fab onPress={() => navigation.navigate('CreateIncident')} />
+      <Fab label="Crear incidencia" onPress={() => navigation.navigate('CreateIncident')} />
     </View>
   );
 }

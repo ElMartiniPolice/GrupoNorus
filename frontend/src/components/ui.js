@@ -66,6 +66,7 @@ export function Card({ children, style, onPress }) {
       style={[styles.card, style]}
       onPress={onPress}
       activeOpacity={onPress ? 0.85 : 1}
+      accessibilityRole={onPress ? 'button' : undefined}
     >
       {children}
     </Wrapper>
@@ -73,9 +74,15 @@ export function Card({ children, style, onPress }) {
 }
 
 /** Botón flotante de acción (FAB) dorado del manual. */
-export function Fab({ onPress }) {
+export function Fab({ onPress, label = 'Agregar' }) {
   return (
-    <TouchableOpacity style={styles.fab} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity
+      style={styles.fab}
+      onPress={onPress}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
       <Text style={styles.fabText}>+</Text>
     </TouchableOpacity>
   );
@@ -132,6 +139,9 @@ export function Button({ title, onPress, variant = 'primary', disabled, loading,
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
     >
       {loading ? (
         <ActivityIndicator color={v.spinner} />
@@ -144,6 +154,7 @@ export function Button({ title, onPress, variant = 'primary', disabled, loading,
 
 /** Campo con etiqueta y error, estilo Lato sobre blanco. */
 export function Input({ label, error, style, ...props }) {
+  const a11yLabel = error ? [label, error].filter(Boolean).join('. ') : label;
   return (
     <View style={[styles.inputWrap, style]}>
       {label ? <Text style={styles.inputLabel}>{label}</Text> : null}
@@ -151,6 +162,7 @@ export function Input({ label, error, style, ...props }) {
         style={styles.input}
         placeholderTextColor={colors.textMuted}
         autoCorrect={false}
+        accessibilityLabel={a11yLabel}
         {...props}
       />
       {error ? <Text style={styles.inputError}>{error}</Text> : null}
@@ -181,6 +193,8 @@ export function ChipSelect({
               key={String(val)}
               style={[styles.chip, active && styles.chipActive]}
               onPress={() => onChange(val)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: active }}
             >
               <Text style={[styles.chipText, active && styles.chipTextActive]}>{text}</Text>
             </TouchableOpacity>
@@ -193,7 +207,11 @@ export function ChipSelect({
 
 /** Título de sección en Cormorant SC. */
 export function SectionTitle({ children, style }) {
-  return <Text style={[styles.sectionTitle, style]}>{children}</Text>;
+  return (
+    <Text style={[styles.sectionTitle, style]} accessibilityRole="header">
+      {children}
+    </Text>
+  );
 }
 
 /** Fila etiqueta–valor para pantallas de detalle. */
@@ -209,7 +227,13 @@ export function Row({ label, value }) {
 export function EmptyState({ message = 'Sin registros por ahora.', icon = '✦' }) {
   return (
     <View style={styles.empty}>
-      <Text style={styles.emptyIcon}>{icon}</Text>
+      <Text
+        style={styles.emptyIcon}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        {icon}
+      </Text>
       <Text style={styles.emptyText}>{message}</Text>
     </View>
   );
@@ -217,7 +241,7 @@ export function EmptyState({ message = 'Sin registros por ahora.', icon = '✦' 
 
 export function Loading({ label = 'Cargando…' }) {
   return (
-    <View style={styles.loadingWrap}>
+    <View style={styles.loadingWrap} accessibilityLabel={label}>
       <ActivityIndicator size="large" color={colors.primary} />
       <Text style={styles.loadingText}>{label}</Text>
     </View>
@@ -227,7 +251,7 @@ export function Loading({ label = 'Cargando…' }) {
 export function ErrorBanner({ message }) {
   if (!message) return null;
   return (
-    <View style={styles.errorBanner}>
+    <View style={styles.errorBanner} accessibilityRole="alert">
       <Text style={styles.errorText}>{message}</Text>
     </View>
   );
@@ -237,7 +261,16 @@ export function ErrorBanner({ message }) {
 export function NotificationBell() {
   const { unreadCount, markAllRead } = useNotifications();
   return (
-    <TouchableOpacity style={styles.bell} onPress={markAllRead} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.bell}
+      onPress={markAllRead}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={
+        unreadCount > 0 ? `Notificaciones, ${unreadCount} sin leer` : 'Notificaciones'
+      }
+      accessibilityHint="Marca todas las notificaciones como leídas"
+    >
       <Text style={styles.bellIcon}>🔔</Text>
       {unreadCount > 0 && (
         <View style={styles.bellBadge}>

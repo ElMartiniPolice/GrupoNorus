@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { taskService, ESTADOS_TAREA } from '../../services/taskService';
-import { colors, fonts, spacing, radius, prioridadColor, taskEstadoColor } from '../../theme';
+import { colors, fonts, spacing, radius, taskEstadoColor } from '../../theme';
 import {
   Badge,
   Button,
