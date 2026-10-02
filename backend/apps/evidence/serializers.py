@@ -10,6 +10,7 @@ Contrato de API (evidenciaService / IncidenciaDetailScreen):
 from rest_framework import serializers
 
 from apps.core.fields import NestedPKRelatedField
+from apps.core.uploads import validar_imagen
 from apps.incidents.models import Incidencia
 from apps.incidents.serializers import IncidenciaMiniSerializer
 from apps.users.serializers import UsuarioMiniSerializer
@@ -23,6 +24,11 @@ class EvidenciaFotograficaSerializer(serializers.ModelSerializer):
         serializer_class=IncidenciaMiniSerializer,
     )
     subida_por = UsuarioMiniSerializer(read_only=True)
+
+    def validate_imagen(self, value):
+        """CP-FOT-01: imagen real (JPG/PNG/WEBP) bajo el límite de tamaño."""
+        validar_imagen(value)
+        return value
 
     class Meta:
         model = EvidenciaFotografica

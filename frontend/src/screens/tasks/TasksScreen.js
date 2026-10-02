@@ -2,7 +2,7 @@
  * TasksScreen — CU2/CU5: Listado de tareas.
  * OPERARIO ve solo las suyas (GET /tasks/tareas/?mias=true); el resto ve todas.
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
@@ -28,7 +28,7 @@ export default function TasksScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [estado, setEstado] = useState('TODAS');
   const esOperario = user?.rol_nombre === 'OPERARIO';
-  const onError = makeErrorHandler(logout);
+  const onError = useMemo(() => makeErrorHandler(logout), [logout]);
 
   const load = useCallback(
     async (silent = false) => {

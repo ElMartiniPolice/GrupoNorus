@@ -2,7 +2,7 @@
  * DashboardScreen — Panel de KPIs (solo ADMINISTRADOR).
  * GET /core/kpis/ → { kpis: [...] } con campos exactos de apps/core/kpis.py.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { kpiService } from '../../services/kpiService';
@@ -80,7 +80,7 @@ export default function DashboardScreen() {
   const [kpis, setKpis] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const onError = makeErrorHandler(logout);
+  const onError = useMemo(() => makeErrorHandler(logout), [logout]);
 
   const load = useCallback(
     async (silent = false) => {

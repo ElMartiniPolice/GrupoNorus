@@ -2,7 +2,7 @@
  * IncidenciasScreen — CU8: Listado de incidencias reportadas.
  * Severidades masculinas: CRITICO / ALTO / MEDIO / BAJO (severityColor).
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
@@ -16,7 +16,6 @@ import {
   Fab,
   Loading,
   Screen,
-  SectionTitle,
   formatFecha,
   makeErrorHandler,
 } from '../../components/ui';
@@ -36,7 +35,7 @@ export default function IncidenciasScreen({ navigation }) {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [severidad, setSeveridad] = useState('TODAS');
-  const onError = makeErrorHandler(logout);
+  const onError = useMemo(() => makeErrorHandler(logout), [logout]);
 
   const load = useCallback(
     async (silent = false) => {
@@ -70,7 +69,6 @@ export default function IncidenciasScreen({ navigation }) {
   return (
     <View style={styles.wrap}>
       <Screen refreshing={refreshing} onRefresh={() => load(true)}>
-        <SectionTitle>Incidencias</SectionTitle>
         <View style={styles.chips}>
           {['TODAS', ...SEVERIDADES].map((s) => (
             <TouchableOpacity
@@ -95,9 +93,8 @@ export default function IncidenciasScreen({ navigation }) {
               <Text style={styles.titulo}>{i.titulo}</Text>
               <Badge label={i.severidad} color={severityColor[i.severidad] || colors.textMuted} />
             </View>
-            <Text style={styles.meta}>
-              Habitación: {habLabel(i.habitacion)} · {formatFecha(i.creada_en)}
-            </Text>
+            <Text style={styles.meta}>Habitación: {habLabel(i.habitacion)}</Text>
+            <Text style={styles.fecha}>{formatFecha(i.creada_en)}</Text>
             <View style={styles.cardFoot}>
               <Badge label={estadoLabel(estadoInc(i))} color={colors.primaryLight} />
               {slaText(i.severidad) ? (
@@ -135,6 +132,7 @@ const styles = StyleSheet.create({
   },
   titulo: { fontFamily: fonts.title, fontSize: 17, color: colors.primary, flex: 1 },
   meta: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, marginBottom: 6 },
+  fecha: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted },
   cardFoot: {
     flexDirection: 'row',
     justifyContent: 'space-between',

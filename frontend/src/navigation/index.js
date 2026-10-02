@@ -6,7 +6,8 @@
  * OPERARIO: Habitaciones (solo las suyas) y su registro fotográfico.
  *
  * Rutas de stack (nombres exigidos por las screens existentes):
- * TaskDetail, CreateTask, IncidentDetail, CreateIncident, RoomDetail, UsuarioForm.
+ * TaskDetail, CreateTask, IncidentDetail, CreateIncident, RoomDetail,
+ * HabitacionForm, UsuarioForm.
  * La barra inferior muestra el badge de alertas no leídas (NotificationContext).
  * El header muestra la campana de notificaciones y el botón "Salir", que
  * cierra la sesión actual (invalida el refresh token en el servidor y
@@ -30,6 +31,7 @@ import IncidenciaDetailScreen from '../screens/incidents/IncidenciaDetailScreen'
 import CreateIncidentScreen from '../screens/incidents/CreateIncidentScreen';
 import RoomsScreen from '../screens/rooms/RoomsScreen';
 import RoomDetailScreen from '../screens/rooms/RoomDetailScreen';
+import HabitacionFormScreen from '../screens/rooms/HabitacionFormScreen';
 import AlertasScreen from '../screens/alertas/AlertasScreen';
 import UsuariosScreen from '../screens/admin/UsuariosScreen';
 import UsuarioFormScreen from '../screens/admin/UsuarioFormScreen';
@@ -113,11 +115,11 @@ function MainTabs() {
           fontSize: 20,
           letterSpacing: 2,
         },
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: colors.primaryLight,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
           backgroundColor: colors.white,
-          borderTopColor: colors.border,
+          borderTopColor: '#DCE2E6',
           height: 60,
           paddingTop: 4,
         },
@@ -189,6 +191,11 @@ export default function AppNavigator() {
         name="RoomDetail"
         component={RoomDetailScreen}
         options={{ title: 'Habitación' }}
+      />
+      <Stack.Screen
+        name="HabitacionForm"
+        component={HabitacionFormScreen}
+        options={{ title: 'Habitación', presentation: 'modal' }}
       />
       <Stack.Screen
         name="UsuarioForm"

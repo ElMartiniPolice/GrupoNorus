@@ -16,7 +16,9 @@ export const colors = {
   coral: '#F25F5C', // Rojo coral — errores, crítico
   text: '#0B3C5D',
   textMuted: '#6B7A87',
+  hint: '#8A9AA5', // Gris azulado — hints del mockup
   border: '#ECECEC',
+  inputBorder: '#D6DEE4', // Borde de campos — field-input del mockup
   overlay: 'rgba(11, 60, 93, 0.55)',
 };
 

@@ -3,7 +3,7 @@
  * RUT validado con módulo 11; la contraseña es obligatoria al crear y
  * opcional al editar (sin cambio = se mantiene la actual).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/userService';
@@ -39,7 +39,7 @@ export default function UsuarioFormScreen({ route, navigation }) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const onError = makeErrorHandler(logout);
+  const onError = useMemo(() => makeErrorHandler(logout), [logout]);
 
   useEffect(() => {
     (async () => {

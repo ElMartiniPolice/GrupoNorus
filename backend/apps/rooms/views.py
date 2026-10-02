@@ -8,6 +8,7 @@ CP-HAB-01: gestión de habitaciones (ADMINISTRADOR / RECEPCION).
 CP-DP-02: un OPERARIO solo ve SUS habitaciones (las de sus tareas
       asignadas o de las incidencias que reportó).
 """
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -15,6 +16,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.permissions import IsAdminOrRecepcion, is_operario
+from apps.core.uploads import validar_imagen
 from .models import (
     CambioEstadoHabitacion,
     ESTADOS_HABITACION,
@@ -73,6 +75,8 @@ class HabitacionViewSet(viewsets.ModelViewSet):
           scoping, así que un operario solo llega a SUS habitaciones).
         - `estado`: nuevo estado (DISPONIBLE/OCUPADA/LIMPIEZA/MANTENCION).
         - `imagen` (multipart, opcional): fotografía de la habitación.
+          CP-FOT-01: se valida que sea una imagen real (JPG/PNG/WEBP)
+          dentro del límite de tamaño.
         """
         habitacion = self.get_object()
         estado = request.data.get('estado')
@@ -81,11 +85,19 @@ class HabitacionViewSet(viewsets.ModelViewSet):
                 {'detail': 'Estado inválido.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        foto = request.FILES.get('imagen')
+        try:
+            validar_imagen(foto)  # CP-FOT-01
+        except ValidationError as error:
+            return Response(
+                {'detail': ' '.join(error.messages)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         cambio = CambioEstadoHabitacion.objects.create(
             habitacion=habitacion,
             estado_anterior=habitacion.estado,
             estado_nuevo=estado,
-            foto=request.FILES.get('imagen'),
+            foto=foto,
             cambiado_por=request.user,
         )
         Habitacion.objects.filter(pk=habitacion.pk).update(estado=estado)

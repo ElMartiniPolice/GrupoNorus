@@ -88,30 +88,39 @@ export function Fab({ onPress, label = 'Agregar' }) {
   );
 }
 
+/**
+ * Color de texto legible para badges: los colores base claros (gold, blue-light)
+ * se oscurecen, como los badges del mockup (fondo pastel + texto oscuro).
+ */
+function badgeTextColor(hex) {
+  const m = /^#([0-9a-f]{6})$/i.exec(String(hex || ''));
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  if ((rgb[0] + rgb[1] + rgb[2]) / (3 * 255) < 0.6) return hex;
+  const k = 0.52;
+  return `#${rgb.map((c) => Math.round(c * k).toString(16).padStart(2, '0')).join('')}`;
+}
+
 /** Píldora de estado/severidad/prioridad con color del theme. */
 export function Badge({ label, color = colors.textMuted }) {
   return (
-    <View
-      style={[
-        styles.badge,
-        { backgroundColor: `${color}1E`, borderColor: `${color}55` },
-      ]}
-    >
-      <Text style={[styles.badgeText, { color }]}>{label}</Text>
+    <View style={[styles.badge, { backgroundColor: `${color}1E` }]}>
+      <Text style={[styles.badgeText, { color: badgeTextColor(color) }]}>{label}</Text>
     </View>
   );
 }
 
 const BTN_VARIANTS = {
   primary: {
-    btn: { backgroundColor: colors.primary },
+    btn: { backgroundColor: colors.primaryLight },
     text: { color: colors.white },
     spinner: colors.white,
   },
   secondary: {
-    btn: { backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.primary },
-    text: { color: colors.primary },
-    spinner: colors.primary,
+    btn: { backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.primaryLight },
+    text: { color: colors.primaryLight },
+    spinner: colors.primaryLight,
   },
   gold: {
     btn: { backgroundColor: colors.gold },
@@ -324,13 +333,14 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.white,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 13,
+    marginBottom: 10,
     shadowColor: colors.primary,
     shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
     elevation: 2,
   },
   fab: {
@@ -353,35 +363,34 @@ const styles = StyleSheet.create({
   badge: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: radius.pill,
-    borderWidth: 1,
   },
   badgeText: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 0.5 },
   btn: {
-    borderRadius: radius.md,
-    paddingVertical: 14,
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 40,
   },
   btnDisabled: { opacity: 0.55 },
-  btnText: { fontFamily: fonts.bodyBold, fontSize: 15, letterSpacing: 0.5 },
-  inputWrap: { marginBottom: spacing.md },
+  btnText: { fontFamily: fonts.bodyBold, fontSize: 13, letterSpacing: 0.1 },
+  inputWrap: { marginBottom: 10 },
   inputLabel: {
     fontFamily: fonts.bodyBold,
-    fontSize: 13,
+    fontSize: 11,
     color: colors.primary,
-    marginBottom: 6,
+    marginBottom: 5,
   },
   input: {
     backgroundColor: colors.white,
-    borderRadius: radius.md,
+    borderRadius: 9,
     borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
+    borderColor: colors.inputBorder,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    fontSize: 12,
     color: colors.text,
     fontFamily: fonts.body,
   },

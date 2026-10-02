@@ -2,6 +2,10 @@
 from .base import *  # noqa: F401,F403
 from .base import config
 
+# La SECRET_KEY de producción DEBE venir del entorno: sin ella el
+# proceso no arranca (fail-fast). dev conserva su default en base.py.
+SECRET_KEY = config('SECRET_KEY')
+
 DEBUG = False
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
 

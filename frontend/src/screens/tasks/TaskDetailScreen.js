@@ -2,7 +2,7 @@
  * TaskDetailScreen — CU6 (actualizar estado) y CU9 (validación por ADMINISTRADOR).
  * PATCH /tasks/tareas/:id/ {estado} · POST /tasks/tareas/:id/validar/ · GET .../historial/
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { taskService, ESTADOS_TAREA } from '../../services/taskService';
@@ -22,16 +22,16 @@ import {
 import { habLabel, userLabel, estadoLabel } from '../../utils/labels';
 
 function historialLine(e) {
-  if (!e) return '';
-  if (typeof e !== 'object') return String(e);
+  if (!e) return { linea: '', meta: '' };
+  if (typeof e !== 'object') return { linea: String(e), meta: '' };
   const estado = e.estado_nuevo ?? e.nuevo_estado ?? e.estado;
   const fecha = e.fecha ?? e.creada_en ?? e.fecha_cambio ?? e.modificada_en;
   const quien = e.usuario ?? e.cambiado_por ?? e.responsable;
-  const partes = [];
-  if (estado) partes.push(`→ ${estadoLabel(estado)}`);
-  if (quien) partes.push(userLabel(quien));
-  if (fecha) partes.push(formatFecha(fecha));
-  return partes.join(' · ') || JSON.stringify(e);
+  const linea = estado ? estadoLabel(estado) : JSON.stringify(e);
+  const meta = [quien ? userLabel(quien) : '', fecha ? formatFecha(fecha) : '']
+    .filter(Boolean)
+    .join('\n');
+  return { linea, meta };
 }
 
 export default function TaskDetailScreen({ route }) {
@@ -43,7 +43,7 @@ export default function TaskDetailScreen({ route }) {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const esAdmin = user?.rol_nombre === 'ADMINISTRADOR';
-  const onError = makeErrorHandler(logout);
+  const onError = useMemo(() => makeErrorHandler(logout), [logout]);
 
   const load = useCallback(async () => {
     try {
@@ -132,7 +132,7 @@ export default function TaskDetailScreen({ route }) {
 
           {esAdmin && (
             <Button
-              title="Validar tarea (CU9)"
+              title="Validar tarea"
               variant="gold"
               loading={busy}
               disabled={busy || tarea.estado === 'COMPLETADA'}
@@ -145,11 +145,15 @@ export default function TaskDetailScreen({ route }) {
           {historial.length === 0 && (
             <Text style={styles.empty}>Sin registros de cambios.</Text>
           )}
-          {historial.map((e, i) => (
-            <View key={i} style={styles.histItem}>
-              <Text style={styles.histText}>{historialLine(e)}</Text>
-            </View>
-          ))}
+          {historial.map((e, i) => {
+            const h = historialLine(e);
+            return (
+              <View key={i} style={styles.histItem}>
+                <Text style={styles.histText}>{h.linea}</Text>
+                {h.meta ? <Text style={styles.histMeta}>{h.meta}</Text> : null}
+              </View>
+            );
+          })}
         </>
       )}
     </Screen>
@@ -192,4 +196,5 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   histText: { fontFamily: fonts.body, fontSize: 13, color: colors.text },
+  histMeta: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, marginTop: 2 },
 });

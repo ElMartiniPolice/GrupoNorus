@@ -8,7 +8,7 @@
  * estado adjuntando fotografía y ver el registro fotográfico y el historial
  * de cambios (sin datos de huéspedes ni estadías).
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -46,9 +46,9 @@ function fechaISO(d) {
   return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
 }
 
-export default function RoomDetailScreen({ route }) {
+export default function RoomDetailScreen({ route, navigation }) {
   const { id } = route.params;
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const esAdmin = user?.rol_nombre === 'ADMINISTRADOR';
   const esRecepcion = user?.rol_nombre === 'RECEPCION';
   const esOperario = user?.rol_nombre === 'OPERARIO';
@@ -67,7 +67,7 @@ export default function RoomDetailScreen({ route }) {
   const [huesped, setHuesped] = useState('');
   const [llegada, setLlegada] = useState(fechaISO(new Date()));
   const [salida, setSalida] = useState(fechaISO(new Date(Date.now() + 86400000)));
-  const onError = makeErrorHandler('cargar la habitación');
+  const onError = useMemo(() => makeErrorHandler(logout), [logout]);
 
   const load = useCallback(async () => {
     try {
@@ -183,6 +183,12 @@ export default function RoomDetailScreen({ route }) {
         </View>
         <Row label="Tipo" value={tipoLabel(room.tipo)} />
         <Row label="Estado" value={room.estado ?? '—'} />
+        {puedeGestionar ? (
+          <Button
+            title="Editar"
+            onPress={() => navigation.navigate('HabitacionForm', { id })}
+          />
+        ) : null}
       </Card>
 
       {activa && puedeGestionar ? (
@@ -195,7 +201,7 @@ export default function RoomDetailScreen({ route }) {
           <Row label="Llegada" value={formatFecha(activa.llegada)} />
           <Row label="Salida prevista" value={formatFecha(activa.salida)} />
           <Button
-            title="Check-out (CU1)"
+            title="Check-out"
             variant="danger"
             onPress={checkout}
             loading={busy}
@@ -207,7 +213,7 @@ export default function RoomDetailScreen({ route }) {
       {puedeGestionar && !activa ? (
         <Card>
           <View style={styles.head}>
-            <Text style={styles.subtitulo}>Check-in (CU3)</Text>
+            <Text style={styles.subtitulo}>Check-in</Text>
           </View>
           {!checkinOpen ? (
             <Button title="Registrar check-in" onPress={() => setCheckinOpen(true)} />
@@ -298,10 +304,10 @@ export default function RoomDetailScreen({ route }) {
                 <Text style={styles.fotoTitulo} numberOfLines={1}>
                   {ev.incidencia?.titulo ?? 'Incidencia'}
                 </Text>
-                <Text style={styles.fotoMeta}>
-                  {formatFecha(ev.subida_en || ev.creada_en)}
-                  {ev.subida_por?.nombre ? ` · ${ev.subida_por.nombre}` : ''}
-                </Text>
+                <Text style={styles.fotoMeta}>{formatFecha(ev.subida_en || ev.creada_en)}</Text>
+                {ev.subida_por?.nombre ? (
+                  <Text style={styles.fotoMeta}>{ev.subida_por.nombre}</Text>
+                ) : null}
               </View>
             );
           })}
@@ -316,9 +322,12 @@ export default function RoomDetailScreen({ route }) {
           <View key={c.id} style={styles.histItem}>
             {c.foto ? <Image source={{ uri: c.foto }} style={styles.fotoImg} /> : null}
             <Text style={styles.histText}>
-              {c.estado_anterior} → {c.estado_nuevo} · {formatFecha(c.fecha)}
-              {c.cambiado_por?.nombre ? ` · ${c.cambiado_por.nombre}` : ''}
+              {c.estado_anterior} → {c.estado_nuevo}
             </Text>
+            <Text style={styles.histMeta}>{formatFecha(c.fecha)}</Text>
+            {c.cambiado_por?.nombre ? (
+              <Text style={styles.histMeta}>{c.cambiado_por.nombre}</Text>
+            ) : null}
           </View>
         ))
       )}
@@ -331,9 +340,9 @@ export default function RoomDetailScreen({ route }) {
           ) : null}
           {estadias.map((e) => (
             <View key={e.id} style={styles.histItem}>
-              <Text style={styles.histText}>
-                {e.huesped ?? '—'} · {formatFecha(e.llegada)} →{' '}
-                {e.salida ? formatFecha(e.salida) : 'En curso'}
+              <Text style={styles.histText}>{e.huesped ?? '—'}</Text>
+              <Text style={styles.histMeta}>
+                {formatFecha(e.llegada)} → {e.salida ? formatFecha(e.salida) : 'En curso'}
               </Text>
             </View>
           ))}
@@ -395,6 +404,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 13,
     color: colors.text,
+  },
+  histMeta: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 2,
   },
   fotoGrid: {
     flexDirection: 'row',

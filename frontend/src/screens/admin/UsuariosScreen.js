@@ -3,7 +3,7 @@
  * Lista usuarios con filtro por rol; el FAB crea uno nuevo y cada tarjeta
  * abre el formulario de edición.
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
@@ -30,7 +30,7 @@ export default function UsuariosScreen({ navigation }) {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [rol, setRol] = useState('TODOS');
-  const onError = makeErrorHandler(logout);
+  const onError = useMemo(() => makeErrorHandler(logout), [logout]);
 
   const load = useCallback(
     async (silent = false) => {

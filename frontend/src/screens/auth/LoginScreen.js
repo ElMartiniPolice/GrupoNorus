@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { formatearRut, normalizarRut, validarRut } from '../../utils/rut';
-import { colors, fonts, spacing, radius } from '../../theme';
+import { colors, fonts } from '../../theme';
 import { BrandMark, Button, ErrorBanner, Input } from '../../components/ui';
 
 export default function LoginScreen() {
@@ -48,8 +48,9 @@ export default function LoginScreen() {
         <Text style={styles.subtitle}>Gestión hotelera en tiempo real</Text>
       </View>
 
-      <View style={styles.card}>
+      <View style={styles.sheet}>
         <Text style={styles.cardTitle}>Iniciar sesión</Text>
+        <Text style={styles.hint}>Use el RUT asignado por administración.</Text>
         <Input
           label="RUT"
           placeholder="12.345.678-9"
@@ -65,8 +66,9 @@ export default function LoginScreen() {
           onChangeText={setPassword}
         />
         {error ? <ErrorBanner message={error} /> : null}
-        <Button title="Ingresar" onPress={submit} loading={loading} disabled={loading} />
-        <Text style={styles.hint}>Use el RUT asignado por administración.</Text>
+        <View style={styles.buttonWrap}>
+          <Button title="Ingresar" onPress={submit} loading={loading} disabled={loading} />
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -74,36 +76,35 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   bg: { flex: 1, backgroundColor: colors.primary },
-  brandArea: { alignItems: 'center', paddingTop: 80, paddingBottom: spacing.xl },
+  brandArea: { alignItems: 'center', paddingTop: 34 },
   subtitle: {
     fontFamily: fonts.body,
-    fontSize: 13,
-    letterSpacing: 1,
+    fontSize: 11,
+    letterSpacing: 0.3,
     color: colors.primarySoft,
-    marginTop: spacing.sm,
+    marginTop: 10,
   },
-  card: {
+  sheet: {
+    flex: 1,
     backgroundColor: colors.white,
-    marginHorizontal: spacing.lg,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    marginTop: 26,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingHorizontal: 18,
+    paddingTop: 22,
+    paddingBottom: 22,
   },
   cardTitle: {
     fontFamily: fonts.title,
-    fontSize: 24,
+    fontSize: 19,
     color: colors.primary,
-    marginBottom: spacing.md,
+    marginBottom: 2,
   },
   hint: {
     fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: spacing.sm,
+    fontSize: 11,
+    color: colors.hint,
+    marginBottom: 14,
   },
+  buttonWrap: { marginTop: 'auto' },
 });

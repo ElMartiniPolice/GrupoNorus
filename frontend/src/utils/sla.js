@@ -11,5 +11,5 @@ export const SLA = {
 export function slaText(severidad) {
   const s = SLA[severidad];
   if (!s) return '';
-  return `Respuesta: ${s.respuesta} · Resolución: ${s.resolucion}`;
+  return `Respuesta: ${s.respuesta}\nResolución: ${s.resolucion}`;
 }

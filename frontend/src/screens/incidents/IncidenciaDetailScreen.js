@@ -2,7 +2,7 @@
  * IncidenciaDetailScreen — Atender (POST .../atender/), Resolver (POST .../resolver/)
  * y evidencia fotográfica (multipart 'incidencia' + 'imagen', expo-image-picker).
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../context/AuthContext';
@@ -42,7 +42,7 @@ export default function IncidenciaDetailScreen({ route }) {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
-  const onError = makeErrorHandler(logout);
+  const onError = useMemo(() => makeErrorHandler(logout), [logout]);
 
   const load = useCallback(async () => {
     try {

@@ -2,20 +2,18 @@
  * CreateIncidentScreen — CU8: Reportar incidencia.
  * POST /incidents/incidencias/ {titulo, descripcion, habitacion, severidad, requiere_evidencia}.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { incidentService, SEVERIDADES } from '../../services/incidentService';
 import { roomService } from '../../services/roomService';
-import { colors, fonts, spacing } from '../../theme';
+import { colors, fonts } from '../../theme';
 import {
   Button,
-  Card,
   ChipSelect,
   ErrorBanner,
   Input,
   Screen,
-  SectionTitle,
   makeErrorHandler,
 } from '../../components/ui';
 import { slaText } from '../../utils/sla';
@@ -30,7 +28,7 @@ export default function CreateIncidentScreen({ navigation }) {
   const [habitaciones, setHabitaciones] = useState([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const onError = makeErrorHandler(logout);
+  const onError = useMemo(() => makeErrorHandler(logout), [logout]);
 
   useEffect(() => {
     (async () => {
@@ -68,51 +66,48 @@ export default function CreateIncidentScreen({ navigation }) {
 
   return (
     <Screen>
-      <SectionTitle>Reportar incidencia</SectionTitle>
       {error ? <ErrorBanner message={error} /> : null}
-      <Card>
-        <Input
-          label="Título"
-          placeholder="Ej: Fuga de agua en baño"
-          value={titulo}
-          onChangeText={setTitulo}
-        />
-        <Input
-          label="Descripción"
-          placeholder="Detalle de lo ocurrido…"
-          value={descripcion}
-          onChangeText={setDescripcion}
-          multiline
-        />
-        <ChipSelect
-          label="Habitación"
-          options={habitaciones}
-          value={habitacion}
-          onChange={setHabitacion}
-          keyBy="id"
-          labelKey="numero"
-        />
-        <ChipSelect
-          label="Severidad"
-          options={SEVERIDADES}
-          value={severidad}
-          onChange={setSeveridad}
-          plain
-        />
-        {slaText(severidad) ? <Text style={styles.sla}>{slaText(severidad)}</Text> : null}
-        <ChipSelect
-          label="Requiere evidencia fotográfica"
-          options={[
-            { id: 'si', nombre: 'Sí' },
-            { id: 'no', nombre: 'No' },
-          ]}
-          value={requiereEvidencia ? 'si' : 'no'}
-          onChange={(v) => setRequiereEvidencia(v === 'si')}
-          keyBy="id"
-          labelKey="nombre"
-        />
-        <Button title="Reportar incidencia" onPress={guardar} loading={saving} disabled={saving} />
-      </Card>
+      <Input
+        label="Título"
+        placeholder="Ej: Fuga de agua en baño"
+        value={titulo}
+        onChangeText={setTitulo}
+      />
+      <Input
+        label="Descripción"
+        placeholder="Detalle de lo ocurrido…"
+        value={descripcion}
+        onChangeText={setDescripcion}
+        multiline
+      />
+      <ChipSelect
+        label="Habitación"
+        options={habitaciones}
+        value={habitacion}
+        onChange={setHabitacion}
+        keyBy="id"
+        labelKey="numero"
+      />
+      <ChipSelect
+        label="Severidad"
+        options={SEVERIDADES}
+        value={severidad}
+        onChange={setSeveridad}
+        plain
+      />
+      {slaText(severidad) ? <Text style={styles.sla}>{slaText(severidad)}</Text> : null}
+      <ChipSelect
+        label="Requiere evidencia fotográfica"
+        options={[
+          { id: 'si', nombre: 'Sí' },
+          { id: 'no', nombre: 'No' },
+        ]}
+        value={requiereEvidencia ? 'si' : 'no'}
+        onChange={(v) => setRequiereEvidencia(v === 'si')}
+        keyBy="id"
+        labelKey="nombre"
+      />
+      <Button title="Reportar incidencia" onPress={guardar} loading={saving} disabled={saving} />
     </Screen>
   );
 }
@@ -122,6 +117,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 12,
     color: colors.textMuted,
-    marginBottom: spacing.md,
+    marginBottom: 10,
   },
 });

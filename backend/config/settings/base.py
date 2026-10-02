@@ -27,6 +27,8 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
+    # Blacklist de refresh tokens — LogoutView invalida el refresh al cerrar sesión.
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'channels',
     'django_filters',
@@ -208,3 +210,6 @@ LOGIN_BLOCK_MINUTES = 15
 
 # Retención de evidencias fotográficas (CP-DP-05) — días
 EVIDENCE_RETENTION_DAYS = 365
+
+# Tamaño máximo de imágenes subidas (evidencias y fotos de cambio de estado) — MB
+MAX_IMAGE_UPLOAD_MB = 5
