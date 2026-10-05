@@ -7,16 +7,13 @@
  *
  * Rutas de stack (nombres exigidos por las screens existentes):
  * TaskDetail, CreateTask, IncidentDetail, CreateIncident, RoomDetail,
- * HabitacionForm, UsuarioForm.
- * La barra inferior muestra el badge de alertas no leídas (NotificationContext).
- * El header muestra la campana de notificaciones y el botón "Salir", que
- * cierra la sesión actual (invalida el refresh token en el servidor y
- * limpia la sesión local → vuelve a la pantalla de login).
+ * HabitacionForm, UsuarioForm, Privacy, AdminSolicitudes.
  */
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
 import { colors, fonts } from '../theme';
 import { NotificationBell } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
@@ -35,6 +32,8 @@ import HabitacionFormScreen from '../screens/rooms/HabitacionFormScreen';
 import AlertasScreen from '../screens/alertas/AlertasScreen';
 import UsuariosScreen from '../screens/admin/UsuariosScreen';
 import UsuarioFormScreen from '../screens/admin/UsuarioFormScreen';
+import PrivacyScreen from '../screens/privacy/PrivacyScreen';
+import AdminSolicitudesScreen from '../screens/privacy/AdminSolicitudesScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -64,7 +63,6 @@ function tabsForRole(rol) {
   if (rol === 'RECEPCION') {
     return ['Tareas', 'Incidencias', 'Habitaciones', 'Alertas'];
   }
-  // CP-DP-02 — OPERARIO: solo sus habitaciones y su registro fotográfico.
   return ['Habitaciones'];
 }
 
@@ -81,10 +79,25 @@ function TabIcon({ icon, color, badge }) {
   );
 }
 
+function makeTabBarIcon(icon, badge) {
+  return function TabBarIconRenderer({ color }) {
+    return <TabIcon icon={icon} color={color} badge={badge} />;
+  };
+}
+
 function HeaderRight() {
   const { logout } = useAuth();
+  const navigation = useNavigation();
   return (
     <View style={styles.headerRight}>
+      <TouchableOpacity
+        style={styles.privacyBtn}
+        onPress={() => navigation.navigate('Privacy')}
+        accessibilityLabel="Abrir privacidad"
+        accessibilityRole="button"
+      >
+        <Text style={styles.privacyText}>Privacidad</Text>
+      </TouchableOpacity>
       <NotificationBell />
       <TouchableOpacity
         style={styles.logoutBtn}
@@ -102,7 +115,10 @@ function MainTabs() {
   const { user } = useAuth();
   const { unreadCount } = useNotifications();
   const rol = user?.rol_nombre;
-  const badge = unreadCount > 0 ? (unreadCount > 9 ? '9+' : String(unreadCount)) : null;
+  let badge = null;
+  if (unreadCount > 0) {
+    badge = unreadCount > 9 ? '9+' : String(unreadCount);
+  }
 
   return (
     <Tab.Navigator
@@ -136,14 +152,8 @@ function MainTabs() {
               rol === 'OPERARIO' && name === 'Habitaciones'
                 ? 'Mis Habitaciones'
                 : name,
-            headerRight: () => <HeaderRight />,
-            tabBarIcon: ({ color }) => (
-              <TabIcon
-                icon={TAB_ICONS[name]}
-                color={color}
-                badge={name === 'Alertas' ? badge : null}
-              />
-            ),
+            headerRight: HeaderRight,
+            tabBarIcon: makeTabBarIcon(TAB_ICONS[name], name === 'Alertas' ? badge : null),
           }}
         />
       ))}
@@ -202,6 +212,16 @@ export default function AppNavigator() {
         component={UsuarioFormScreen}
         options={{ title: 'Usuario', presentation: 'modal' }}
       />
+      <Stack.Screen
+        name="Privacy"
+        component={PrivacyScreen}
+        options={{ title: 'Privacidad' }}
+      />
+      <Stack.Screen
+        name="AdminSolicitudes"
+        component={AdminSolicitudesScreen}
+        options={{ title: 'Solicitudes de derechos' }}
+      />
     </Stack.Navigator>
   );
 }
@@ -235,6 +255,16 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  privacyBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 4,
+  },
+  privacyText: {
+    color: colors.white,
+    fontSize: 13,
+    fontFamily: fonts.bodyBold,
   },
   logoutBtn: {
     paddingHorizontal: 12,

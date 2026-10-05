@@ -4,9 +4,9 @@
  * Carga las seis fuentes de la marca (Cormorant SC, EB Garamond, Lato),
  * monta la cadena de providers (SafeArea → Auth → Notificaciones) y el
  * NavigationContainer. Sin sesión activa muestra LoginScreen (CU4); con
- * sesión muestra la navegación por rol (CP-DP-02).
+ * sesión valida el consentimiento de privacidad antes de entrar al app shell.
  */
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -30,6 +30,8 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import LoginScreen from './src/screens/auth/LoginScreen';
 import AppNavigator from './src/navigation';
+import ConsentScreen from './src/screens/privacy/ConsentScreen';
+import { privacyService } from './src/services/privacyService';
 
 const navTheme = {
   ...DefaultTheme,
@@ -58,11 +60,128 @@ function Root() {
     Lato_400Regular,
     Lato_700Bold,
   });
-  const { user, initializing } = useAuth();
+  const { user, initializing, logout } = useAuth();
+  const [consentState, setConsentState] = useState({
+    loading: false,
+    pending: false,
+    aviso: null,
+    error: '',
+  });
+  const [accepting, setAccepting] = useState(false);
 
   // Degradación elegante: si una fuente falla, se continúa con las fuentes
   // del sistema en lugar de quedar atrapados en la pantalla de carga.
   const fontsReady = fontsLoaded || fontError;
+
+  const refreshConsent = useCallback(async () => {
+    setConsentState((current) => ({
+      ...current,
+      loading: true,
+      error: '',
+    }));
+
+    const result = await privacyService.getConsentimientoActual();
+    if (result.ok) {
+      setConsentState({
+        loading: false,
+        pending: Boolean(result.data?.pendiente),
+        aviso: result.data?.aviso ?? null,
+        error: '',
+      });
+      return;
+    }
+
+    setConsentState({
+      loading: false,
+      pending: true,
+      aviso: null,
+      error: result.message || 'No fue posible verificar el consentimiento.',
+    });
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!user) {
+      setConsentState({
+        loading: false,
+        pending: false,
+        aviso: null,
+        error: '',
+      });
+      setAccepting(false);
+      return undefined;
+    }
+
+    setConsentState((current) => ({
+      ...current,
+      loading: true,
+      error: '',
+    }));
+
+    void (async () => {
+      const result = await privacyService.getConsentimientoActual();
+      if (!active) return;
+      if (result.ok) {
+        setConsentState({
+          loading: false,
+          pending: Boolean(result.data?.pendiente),
+          aviso: result.data?.aviso ?? null,
+          error: '',
+        });
+        return;
+      }
+      setConsentState({
+        loading: false,
+        pending: true,
+        aviso: null,
+        error: result.message || 'No fue posible verificar el consentimiento.',
+      });
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const handleAcceptConsent = useCallback(async () => {
+    setAccepting(true);
+    setConsentState((current) => ({ ...current, error: '' }));
+    const result = await privacyService.aceptarConsentimiento();
+    setAccepting(false);
+
+    if (result.ok) {
+      setConsentState((current) => ({
+        ...current,
+        pending: false,
+        aviso: result.data?.aviso ?? current.aviso,
+        error: '',
+      }));
+      return;
+    }
+
+    setConsentState((current) => ({
+      ...current,
+      pending: true,
+      error: result.message || 'No fue posible registrar el consentimiento.',
+    }));
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    setConsentState({
+      loading: false,
+      pending: false,
+      aviso: null,
+      error: '',
+    });
+    logout();
+  }, [logout]);
+
+  // En caso de error cargando consentimiento, permitimos reintentar sin
+  // volver a la pantalla de login.
+  const handleRetryConsent = useCallback(() => {
+    refreshConsent();
+  }, [refreshConsent]);
 
   if (!fontsReady || initializing) {
     return (
@@ -74,11 +193,37 @@ function Root() {
     );
   }
 
-  return (
-    <NavigationContainer theme={navTheme}>
-      {user ? <AppNavigator /> : <LoginScreen />}
-    </NavigationContainer>
-  );
+  if (user && consentState.loading) {
+    return (
+      <View style={styles.splash}>
+        <Text style={styles.splashBrand}>NORUS</Text>
+        <Text style={styles.splashTag}>APARTMENTS</Text>
+        <ActivityIndicator size="large" color={colors.gold} style={styles.splashSpinner} />
+        <Text style={styles.splashText}>Verificando consentimiento de privacidad…</Text>
+      </View>
+    );
+  }
+
+  const showConsent = user && (consentState.pending || consentState.error);
+  let content = <LoginScreen />;
+
+  if (user) {
+    content = showConsent ? (
+      <ConsentScreen
+        aviso={consentState.aviso}
+        error={consentState.error}
+        loading={consentState.loading}
+        accepting={accepting}
+        onAccept={handleAcceptConsent}
+        onLogout={handleLogout}
+        onRetry={handleRetryConsent}
+      />
+    ) : (
+      <AppNavigator />
+    );
+  }
+
+  return <NavigationContainer theme={navTheme}>{content}</NavigationContainer>;
 }
 
 export default function App() {
@@ -114,5 +259,11 @@ const styles = StyleSheet.create({
   },
   splashSpinner: {
     marginTop: 32,
+  },
+  splashText: {
+    marginTop: 14,
+    color: colors.white,
+    fontSize: 13,
+    fontFamily: 'Lato_400Regular',
   },
 });

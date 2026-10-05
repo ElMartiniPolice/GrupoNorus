@@ -13,6 +13,8 @@ urlpatterns = [
     path('api/incidents/', include('apps.incidents.urls')),
     path('api/evidence/', include('apps.evidence.urls')),
     path('api/notifications/', include('apps.notifications.urls')),
+    # Ley N° 21.719: aviso de privacidad, consentimiento y derechos del titular.
+    path('api/privacy/', include('apps.privacy.urls')),
     path('api/core/', include('apps.core.urls')),
 ]
 

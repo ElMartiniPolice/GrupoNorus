@@ -42,6 +42,9 @@ LOCAL_APPS = [
     'apps.incidents',
     'apps.evidence',
     'apps.notifications',
+    # Ley N° 21.719: aviso de privacidad, consentimiento, derechos del
+    # titular y bitácora de auditoría de accesos.
+    'apps.privacy',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
