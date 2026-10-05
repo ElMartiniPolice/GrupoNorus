@@ -117,4 +117,4 @@ python manage.py test apps   # cubre CP-AUT-01/02, CP-USR-01, CP-TAR-01/02, CP-I
 ```
 
 ## Licencia
-Uso académico — Duoc UC / Proyecto de Título.
+Uso académico — INACAP IP / Proyecto de Título.
