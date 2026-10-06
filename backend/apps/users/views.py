@@ -117,3 +117,12 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         if self.action in ('create', 'update', 'partial_update'):
             return UsuarioCreateSerializer
         return UsuarioSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.pk == request.user.pk:
+            return Response(
+                {'detail': 'No puede eliminar su propia cuenta.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)

@@ -70,4 +70,9 @@ export const roomService = {
     const { data } = await api.get(`/rooms/habitaciones/${habitacionId}/cambios_estado/`);
     return data.results ?? data;
   },
+  /** Historial global de cambios de estado (solo ADMINISTRADOR). */
+  async historialCambios(params = {}) {
+    const { data } = await api.get('/rooms/cambios-estado/', { params });
+    return data.results ?? data;
+  },
 };

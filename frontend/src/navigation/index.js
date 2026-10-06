@@ -32,6 +32,7 @@ import HabitacionFormScreen from '../screens/rooms/HabitacionFormScreen';
 import AlertasScreen from '../screens/alertas/AlertasScreen';
 import UsuariosScreen from '../screens/admin/UsuariosScreen';
 import UsuarioFormScreen from '../screens/admin/UsuarioFormScreen';
+import HistorialHabitacionesScreen from '../screens/admin/HistorialHabitacionesScreen';
 import PrivacyScreen from '../screens/privacy/PrivacyScreen';
 import AdminSolicitudesScreen from '../screens/privacy/AdminSolicitudesScreen';
 
@@ -206,6 +207,11 @@ export default function AppNavigator() {
         name="HabitacionForm"
         component={HabitacionFormScreen}
         options={{ title: 'Habitación', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="HistorialHabitaciones"
+        component={HistorialHabitacionesScreen}
+        options={{ title: 'Historial de habitaciones' }}
       />
       <Stack.Screen
         name="UsuarioForm"

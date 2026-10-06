@@ -46,8 +46,8 @@ class UsuarioSerializer(serializers.ModelSerializer):
 
 
 class UsuarioCreateSerializer(serializers.ModelSerializer):
-    """CP-USR-01: creación de usuario con rol y área."""
-    password = serializers.CharField(write_only=True, min_length=6)
+    """CP-USR-01: creación y edición de usuario con rol y área."""
+    password = serializers.CharField(write_only=True, min_length=6, required=False)
 
     class Meta:
         model = Usuario
@@ -59,7 +59,10 @@ class UsuarioCreateSerializer(serializers.ModelSerializer):
         value = value.upper().strip()
         if not validar_rut(value):
             raise serializers.ValidationError('RUT inválido.')
-        if Usuario.objects.filter(rut=value).exists():
+        qs = Usuario.objects.filter(rut=value)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
             raise serializers.ValidationError('Ya existe un usuario con este RUT.')
         return value
 
@@ -68,6 +71,14 @@ class UsuarioCreateSerializer(serializers.ModelSerializer):
         user = Usuario(**validated_data)
         user.set_password(password)
         user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        user = super().update(instance, validated_data)
+        if password:
+            user.set_password(password)
+            user.save()
         return user
 
 

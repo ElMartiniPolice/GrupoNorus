@@ -78,6 +78,15 @@ export default function RoomsScreen({ navigation }) {
           ))}
         </View>
 
+        {esAdmin ? (
+          <TouchableOpacity
+            style={styles.histLink}
+            onPress={() => navigation.navigate('HistorialHabitaciones')}
+          >
+            <Text style={styles.histLinkText}>Historial de cambios →</Text>
+          </TouchableOpacity>
+        ) : null}
+
         {error ? <ErrorBanner message={error} /> : null}
         {!rooms && !error ? <Loading label="Cargando habitaciones…" /> : null}
         {rooms && visibles.length === 0 && !error ? (
@@ -133,6 +142,15 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: colors.white,
+  },
+  histLink: {
+    alignSelf: 'flex-end',
+    marginBottom: spacing.md,
+  },
+  histLinkText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13,
+    color: colors.primary,
   },
   cardHead: {
     flexDirection: 'row',

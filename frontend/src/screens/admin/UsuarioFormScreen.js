@@ -191,7 +191,6 @@ export default function UsuarioFormScreen({ route, navigation }) {
           ]}
           value={activo ? 'si' : 'no'}
           onChange={(v) => setActivo(v === 'si')}
-          plain
         />
         <Button
           title={esEditar ? 'Guardar cambios' : 'Crear usuario'}

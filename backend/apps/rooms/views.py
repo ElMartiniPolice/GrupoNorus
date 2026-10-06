@@ -15,7 +15,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.core.permissions import IsAdminOrRecepcion, is_operario
+from apps.core.permissions import IsAdmin, IsAdminOrRecepcion, is_operario
 from apps.core.uploads import validar_imagen
 from .models import (
     CambioEstadoHabitacion,
@@ -185,3 +185,20 @@ class RegistroEstadiaViewSet(viewsets.ModelViewSet):
         return Response(
             RegistroEstadiaSerializer(estadia, context={'request': request}).data
         )
+
+
+class CambioEstadoHabitacionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Historial global de cambios de estado de habitaciones — ADMINISTRADOR.
+
+    - Página histórica de todas las actualizaciones de estado de las
+      habitaciones (con foto y responsable, cuando existen).
+    - `?habitacion=<id>` filtra por una habitación concreta.
+    - `?estado_nuevo=<ESTADO>` filtra por el estado resultante del cambio.
+    """
+    queryset = CambioEstadoHabitacion.objects.select_related(
+        'habitacion', 'cambiado_por',
+    ).all()
+    serializer_class = CambioEstadoHabitacionSerializer
+    permission_classes = [IsAdmin]
+    filterset_fields = ['habitacion', 'estado_nuevo']
