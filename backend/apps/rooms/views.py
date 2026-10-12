@@ -49,13 +49,17 @@ class HabitacionViewSet(viewsets.ModelViewSet):
     - CP-DP-02: un OPERARIO solo ve SUS habitaciones (las de sus tareas
       asignadas o de las incidencias que reportó).
     """
-    queryset = Habitacion.objects.select_related('tipo').all()
+    queryset = Habitacion.objects.select_related('tipo', 'sede').all()
     serializer_class = HabitacionSerializer
-    filterset_fields = ['estado', 'tipo']
+    filterset_fields = ['estado', 'tipo', 'sede']
 
     def get_queryset(self):
         """CP-DP-02 — Restringe listado/detalle a las habitaciones del operario."""
         qs = super().get_queryset()
+        if self.request.user.sede_id:
+            qs = qs.filter(sede_id=self.request.user.sede_id)
+        else:
+            qs = qs.none()
         if is_operario(self.request.user):
             qs = qs.filter(pk__in=habitaciones_del_operario(self.request.user))
         return qs
@@ -64,6 +68,12 @@ class HabitacionViewSet(viewsets.ModelViewSet):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
             return [IsAdminOrRecepcion()]
         return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        serializer.save(sede=self.request.user.sede)
+
+    def perform_update(self, serializer):
+        serializer.save(sede=self.request.user.sede)
 
     @action(detail=True, methods=['post'])
     def cambiar_estado(self, request, pk=None):
@@ -140,6 +150,10 @@ class RegistroEstadiaViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """CP-DP-02 — Un OPERARIO solo ve estadías de sus habitaciones."""
         qs = super().get_queryset()
+        if self.request.user.sede_id:
+            qs = qs.filter(habitacion__sede_id=self.request.user.sede_id)
+        else:
+            qs = qs.none()
         if is_operario(self.request.user):
             qs = qs.filter(
                 habitacion__in=habitaciones_del_operario(self.request.user),

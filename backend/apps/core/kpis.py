@@ -14,7 +14,7 @@ from django.db.models import Avg, Count, F, Q
 from django.utils import timezone
 
 
-def kpi1_tiempo_respuesta():
+def kpi1_tiempo_respuesta(sede_id=None):
     """
     Promedio de minutos entre la creación de una incidencia y su primera
     atención (cambio de estado o respuesta registrada).
@@ -26,6 +26,8 @@ def kpi1_tiempo_respuesta():
         atendida_en__isnull=False,
         creada_en__isnull=False,
     )
+    if sede_id:
+        qs = qs.filter(reportado_por__sede_id=sede_id)
     agg = qs.annotate(
         minutos=Avg(F('atendida_en') - F('creada_en'))
     ).aggregate(promedio=Avg('minutos'))
@@ -38,7 +40,7 @@ def kpi1_tiempo_respuesta():
     }
 
 
-def kpi2_trazabilidad():
+def kpi2_trazabilidad(sede_id=None):
     """
     Porcentaje de solicitudes/incidencias registradas en la plataforma
     respecto del total de reportes. Meta: 100% en 2 meses.
@@ -46,7 +48,12 @@ def kpi2_trazabilidad():
     from apps.incidents.models import Incidencia
     from apps.tasks.models import AsignacionTarea
 
-    total = Incidencia.objects.count() + AsignacionTarea.objects.count()
+    incidencias = Incidencia.objects.all()
+    tareas = AsignacionTarea.objects.all()
+    if sede_id:
+        incidencias = incidencias.filter(reportado_por__sede_id=sede_id)
+        tareas = tareas.filter(asignado_a__sede_id=sede_id)
+    total = incidencias.count() + tareas.count()
     return {
         'kpi': 'KPI 2 — Trazabilidad',
         'registros_plataforma': total,
@@ -54,15 +61,18 @@ def kpi2_trazabilidad():
     }
 
 
-def kpi3_asignacion_habitaciones():
+def kpi3_asignacion_habitaciones(sede_id=None):
     """
     Porcentaje de asignaciones de habitaciones sin conflictos de duplicidad.
     Meta: 95% (mes 1) → 98% (mes 3).
     """
     from apps.rooms.models import RegistroEstadia
 
-    total = RegistroEstadia.objects.count()
-    con_conflicto = RegistroEstadia.objects.filter(conflicto=True).count()
+    qs = RegistroEstadia.objects.all()
+    if sede_id:
+        qs = qs.filter(habitacion__sede_id=sede_id)
+    total = qs.count()
+    con_conflicto = qs.filter(conflicto=True).count()
     sin_conflicto = total - con_conflicto
     porcentaje = round((sin_conflicto / total) * 100, 1) if total else None
     return {
@@ -74,7 +84,7 @@ def kpi3_asignacion_habitaciones():
     }
 
 
-def kpi4_respaldo_fotografico():
+def kpi4_respaldo_fotografico(sede_id=None):
     """
     Porcentaje de incidencias que requieren evidencia visual y que cuentan
     con fotografías subidas. Meta: 100% en 2 meses.
@@ -83,6 +93,8 @@ def kpi4_respaldo_fotografico():
     from apps.incidents.models import Incidencia
 
     requieren = Incidencia.objects.filter(requiere_evidencia=True)
+    if sede_id:
+        requieren = requieren.filter(reportado_por__sede_id=sede_id)
     con_evidencia = requieren.filter(
         id__in=EvidenciaFotografica.objects.values_list('incidencia_id', flat=True)
     ).count()
@@ -97,7 +109,7 @@ def kpi4_respaldo_fotografico():
     }
 
 
-def kpi5_adopcion():
+def kpi5_adopcion(sede_id=None):
     """
     Usuarios activos por día / total de colaboradores registrados.
     Meta: 80% (mes 1) → 95% (mes 3).
@@ -105,10 +117,11 @@ def kpi5_adopcion():
     from apps.users.models import Usuario
 
     hoy = timezone.now().date()
-    activos_hoy = Usuario.objects.filter(
-        ultimo_acceso__date=hoy
-    ).count()
-    total = Usuario.objects.filter(is_active=True).count()
+    qs = Usuario.objects.all()
+    if sede_id:
+        qs = qs.filter(sede_id=sede_id)
+    activos_hoy = qs.filter(ultimo_acceso__date=hoy).count()
+    total = qs.filter(is_active=True).count()
     porcentaje = round((activos_hoy / total) * 100, 1) if total else None
     return {
         'kpi': 'KPI 5 — Adopción de la plataforma',
@@ -119,12 +132,12 @@ def kpi5_adopcion():
     }
 
 
-def resumen_kpis():
+def resumen_kpis(sede_id=None):
     """Panel de administración (CP-ADM-01): todos los KPI en un endpoint."""
     return [
-        kpi1_tiempo_respuesta(),
-        kpi2_trazabilidad(),
-        kpi3_asignacion_habitaciones(),
-        kpi4_respaldo_fotografico(),
-        kpi5_adopcion(),
+        kpi1_tiempo_respuesta(sede_id),
+        kpi2_trazabilidad(sede_id),
+        kpi3_asignacion_habitaciones(sede_id),
+        kpi4_respaldo_fotografico(sede_id),
+        kpi5_adopcion(sede_id),
     ]

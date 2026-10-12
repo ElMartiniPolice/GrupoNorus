@@ -106,7 +106,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     Gestión de usuarios — CP-USR-01.
     Lecturas: ADMINISTRADOR o RECEPCION. Escrituras: solo ADMINISTRADOR.
     """
-    queryset = Usuario.objects.all().select_related('rol', 'area')
+    queryset = Usuario.objects.all().select_related('rol', 'area', 'sede')
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):

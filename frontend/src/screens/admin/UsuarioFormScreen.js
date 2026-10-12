@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/userService';
+import { sedeService } from '../../services/sedeService';
 import { cleanRut, formatearRut, validarRut } from '../../utils/rut';
 import { colors, fonts, spacing } from '../../theme';
 import {
@@ -32,10 +33,12 @@ export default function UsuarioFormScreen({ route, navigation }) {
   const [telefono, setTelefono] = useState('');
   const [rol, setRol] = useState(null);
   const [area, setArea] = useState(null);
+  const [sede, setSede] = useState(null);
   const [password, setPassword] = useState('');
   const [activo, setActivo] = useState(true);
   const [roles, setRoles] = useState([]);
   const [areas, setAreas] = useState([]);
+  const [sedes, setSedes] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -44,12 +47,14 @@ export default function UsuarioFormScreen({ route, navigation }) {
   useEffect(() => {
     (async () => {
       try {
-        const [rs, as] = await Promise.all([
+        const [rs, as, ss] = await Promise.all([
           userService.roles().catch(() => []),
           userService.areas().catch(() => []),
+          sedeService.list({ activo: true }).catch(() => []),
         ]);
         setRoles(Array.isArray(rs) ? rs : []);
         setAreas(Array.isArray(as) ? as : []);
+        setSedes(Array.isArray(ss) ? ss : []);
         if (esEditar) {
           const u = await userService.get(id);
           setRut(u.rut ? formatearRut(u.rut) : '');
@@ -58,6 +63,7 @@ export default function UsuarioFormScreen({ route, navigation }) {
           setTelefono(u.telefono ?? '');
           setRol(u.rol ?? null);
           setArea(u.area ?? null);
+          setSede(u.sede?.id ?? null);
           setActivo(u.is_active !== false);
         }
       } catch (e) {
@@ -76,6 +82,7 @@ export default function UsuarioFormScreen({ route, navigation }) {
     if (!nombre.trim()) return setError('Ingrese el nombre.');
     if (!rol) return setError('Seleccione un rol.');
     if (!area) return setError('Seleccione un área.');
+    if (!sede) return setError('Seleccione una sede.');
     if (password && password.length < 6) {
       return setError('La contraseña debe tener al menos 6 caracteres.');
     }
@@ -90,6 +97,7 @@ export default function UsuarioFormScreen({ route, navigation }) {
       telefono: telefono.trim(),
       rol,
       area,
+      sede,
       is_active: activo,
     };
     if (!esEditar || password) payload.password = password;
@@ -173,6 +181,14 @@ export default function UsuarioFormScreen({ route, navigation }) {
           options={areas}
           value={area}
           onChange={setArea}
+          keyBy="id"
+          labelKey="nombre"
+        />
+        <ChipSelect
+          label="Sede"
+          options={sedes}
+          value={sede}
+          onChange={setSede}
           keyBy="id"
           labelKey="nombre"
         />

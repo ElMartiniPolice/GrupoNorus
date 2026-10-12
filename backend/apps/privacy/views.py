@@ -192,6 +192,7 @@ class SolicitudCreateView(APIView):
         titular = f'{request.user.nombre} {request.user.apellido}'.strip()
         admins = Usuario.objects.filter(
             rol__nombre='ADMINISTRADOR', is_active=True,
+            sede_id=request.user.sede_id,
         ).values_list('id', flat=True)
         for admin_id in admins:
             notificar(

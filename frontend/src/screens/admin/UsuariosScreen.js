@@ -98,6 +98,7 @@ export default function UsuariosScreen({ navigation }) {
             <Text style={styles.meta}>RUT: {rutTxt(u)}</Text>
             <View style={styles.cardFoot}>
               <Badge label={u.area_nombre ?? '—'} color={colors.primarySoft} />
+              <Badge label={u.sede?.nombre ?? 'Sin sede'} color={colors.primarySoft} />
               <Badge
                 label={u.is_active ? 'Activo' : 'Inactivo'}
                 color={u.is_active ? colors.primaryLight : colors.textMuted}

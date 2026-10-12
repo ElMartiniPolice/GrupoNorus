@@ -64,6 +64,14 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     rol = models.ForeignKey(Rol, on_delete=models.PROTECT, related_name='usuarios')
     area = models.ForeignKey(Area, on_delete=models.PROTECT, related_name='usuarios')
+    sede = models.ForeignKey(
+        'sedes.Sede',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='usuarios',
+        verbose_name='sede',
+    )
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

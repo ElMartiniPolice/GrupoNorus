@@ -15,4 +15,4 @@ class KPIDashboardView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def get(self, request):
-        return Response({'kpis': resumen_kpis()})
+        return Response({'kpis': resumen_kpis(request.user.sede_id)})

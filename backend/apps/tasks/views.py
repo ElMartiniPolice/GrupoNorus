@@ -10,6 +10,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
 from apps.core.permissions import IsAdmin, is_admin, is_recepcion
 from apps.notifications.services import notificar
@@ -43,6 +44,10 @@ class AsignacionTareaViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
+        if user.sede_id:
+            qs = qs.filter(asignado_a__sede_id=user.sede_id)
+        else:
+            qs = qs.none()
         # CU5 — OPERARIO solo ve sus tareas asignadas.
         if not (is_admin(user) or is_recepcion(user)):
             qs = qs.filter(asignado_a=user)
@@ -52,6 +57,15 @@ class AsignacionTareaViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
+        tarea_data = serializer.validated_data
+        if (
+            tarea_data.get('asignado_a').sede_id != self.request.user.sede_id
+            or (
+                tarea_data.get('habitacion')
+                and tarea_data['habitacion'].sede_id != self.request.user.sede_id
+            )
+        ):
+            raise ValidationError('La tarea y sus responsables deben pertenecer a la sede activa.')
         tarea = serializer.save()
         # Historial inicial (creación en estado PENDIENTE).
         HistorialEstadoTarea.objects.create(

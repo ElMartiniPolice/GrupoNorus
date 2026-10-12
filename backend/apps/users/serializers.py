@@ -5,6 +5,8 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.users.models import Area, Rol, Usuario
+from apps.sedes.models import Sede
+from apps.sedes.serializers import SedeMiniSerializer
 
 
 class RolSerializer(serializers.ModelSerializer):
@@ -28,18 +30,21 @@ class UsuarioMiniSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Usuario
-        fields = ['id', 'nombre', 'apellido']
+        fields = ['id', 'nombre', 'apellido', 'sede']
+    sede = SedeMiniSerializer(read_only=True)
 
 
 class UsuarioSerializer(serializers.ModelSerializer):
     rol_nombre = serializers.CharField(source='rol.nombre', read_only=True)
     area_nombre = serializers.CharField(source='area.nombre', read_only=True)
+    sede = SedeMiniSerializer(read_only=True)
 
     class Meta:
         model = Usuario
         fields = [
             'id', 'rut', 'nombre', 'apellido', 'telefono',
             'rol', 'rol_nombre', 'area', 'area_nombre',
+            'sede',
             'is_active', 'ultimo_acceso',
         ]
         read_only_fields = ['ultimo_acceso']
@@ -48,11 +53,13 @@ class UsuarioSerializer(serializers.ModelSerializer):
 class UsuarioCreateSerializer(serializers.ModelSerializer):
     """CP-USR-01: creación y edición de usuario con rol y área."""
     password = serializers.CharField(write_only=True, min_length=6, required=False)
+    sede = serializers.PrimaryKeyRelatedField(queryset=Sede.objects.filter(activo=True))
 
     class Meta:
         model = Usuario
         fields = ['id', 'rut', 'nombre', 'apellido', 'telefono',
                   'rol', 'area', 'password', 'is_active']
+        fields = fields + ['sede']
 
     def validate_rut(self, value):
         from apps.utils.rut import validar_rut
@@ -95,6 +102,7 @@ class LoginSerializer(TokenObtainPairSerializer):
         token['rut'] = user.rut
         token['rol'] = user.rol.nombre
         token['area'] = user.area.nombre
+        token['sede'] = user.sede_id
         token['nombre'] = f'{user.nombre} {user.apellido}'
         return token
 

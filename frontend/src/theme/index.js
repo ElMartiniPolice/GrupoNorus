@@ -66,3 +66,9 @@ export const roomEstadoColor = {
   LIMPIEZA: colors.primarySoft,
   MANTENCION: colors.coral,
 };
+
+export const objetoEstadoColor = {
+  EN_RESGUARDO: colors.primaryLight,
+  ENTREGADO: '#2E7D32',
+  DESCARTADO: colors.coral,
+};

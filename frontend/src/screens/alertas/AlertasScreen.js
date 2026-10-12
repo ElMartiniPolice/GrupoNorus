@@ -37,7 +37,7 @@ export default function AlertasScreen() {
         ) : null}
       </View>
 
-      {lista.length === 0 ? <EmptyState message="Sin alertas por ahora." icon="🔔" /> : null}
+      {lista.length === 0 ? <EmptyState message="Sin alertas por ahora." icon="notifications-outline" /> : null}
 
       {lista.map((n, idx) => (
         <Card

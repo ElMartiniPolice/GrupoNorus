@@ -34,11 +34,19 @@ class TipoHabitacion(models.Model):
 
 class Habitacion(models.Model):
     """Habitación del apart-hotel (CU1/CU3/CU10, CP-HAB-01)."""
-    numero = models.CharField(max_length=10, unique=True)
+    numero = models.CharField(max_length=10)
     tipo = models.ForeignKey(
         TipoHabitacion,
         on_delete=models.PROTECT,
         related_name='habitaciones',
+    )
+    sede = models.ForeignKey(
+        'sedes.Sede',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='habitaciones',
+        verbose_name='sede',
     )
     estado = models.CharField(
         max_length=20,
@@ -51,6 +59,12 @@ class Habitacion(models.Model):
         ordering = ['numero']
         verbose_name = 'habitación'
         verbose_name_plural = 'habitaciones'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['sede', 'numero'],
+                name='habitacion_numero_por_sede_unico',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.numero} ({self.estado})'

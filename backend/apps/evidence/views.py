@@ -41,6 +41,10 @@ class EvidenciaFotograficaViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
+        if user.sede_id:
+            qs = qs.filter(incidencia__reportado_por__sede_id=user.sede_id)
+        else:
+            qs = qs.none()
         if is_operario(user):
             qs = qs.filter(
                 incidencia__habitacion__in=habitaciones_del_operario(user),

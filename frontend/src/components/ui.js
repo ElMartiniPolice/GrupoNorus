@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '../theme';
 import { BRAND_NAME, BRAND_TAGLINE } from '../config';
 import { apiErrorMessage } from '../services/api';
@@ -233,16 +234,16 @@ export function Row({ label, value }) {
   );
 }
 
-export function EmptyState({ message = 'Sin registros por ahora.', icon = '✦' }) {
+export function EmptyState({ message = 'Sin registros por ahora.', icon = 'file-tray-outline' }) {
   return (
     <View style={styles.empty}>
-      <Text
-        style={styles.emptyIcon}
+      <Ionicons
+        name={icon}
+        size={34}
+        color={colors.primarySoft}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-      >
-        {icon}
-      </Text>
+      />
       <Text style={styles.emptyText}>{message}</Text>
     </View>
   );
@@ -280,7 +281,7 @@ export function NotificationBell() {
       }
       accessibilityHint="Marca todas las notificaciones como leídas"
     >
-      <Text style={styles.bellIcon}>🔔</Text>
+      <Ionicons name="notifications-outline" size={22} color={colors.white} />
       {unreadCount > 0 && (
         <View style={styles.bellBadge}>
           <Text style={styles.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>

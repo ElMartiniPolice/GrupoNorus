@@ -15,6 +15,14 @@ class Notificacion(models.Model):
         related_name='notificaciones',
         verbose_name='usuario',
     )
+    sede = models.ForeignKey(
+        'sedes.Sede',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='notificaciones',
+        verbose_name='sede',
+    )
     titulo = models.CharField(max_length=150, verbose_name='título')
     mensaje = models.TextField(verbose_name='mensaje')
     leida = models.BooleanField(default=False, verbose_name='leída')

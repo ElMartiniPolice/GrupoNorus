@@ -34,7 +34,7 @@ class NotificacionViewSet(viewsets.ModelViewSet):
         return (
             Notificacion.objects
             .filter(usuario=self.request.user)
-            .select_related('usuario')
+            .select_related('usuario', 'sede')
         )
 
     def get_permissions(self):

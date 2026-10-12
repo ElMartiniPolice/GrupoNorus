@@ -23,6 +23,12 @@ export function userLabel(u) {
   return String(u);
 }
 
+export function sedeLabel(s) {
+  if (s === null || s === undefined || s === '') return '—';
+  if (typeof s === 'object') return s.nombre ?? '—';
+  return String(s);
+}
+
 export function estadoLabel(e) {
   return String(e ?? '').replace(/_/g, ' ');
 }

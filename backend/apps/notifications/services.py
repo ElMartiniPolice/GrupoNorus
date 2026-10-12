@@ -12,6 +12,8 @@ Uso (tasks/views.py, incidents/views.py):
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
+from apps.users.models import Usuario
+
 from .models import Notificacion
 
 
@@ -25,8 +27,10 @@ def notificar(usuario_id, titulo, mensaje):
     """
     if not usuario_id:
         return None
+    usuario = Usuario.objects.select_related('sede').get(pk=usuario_id)
     notificacion = Notificacion.objects.create(
         usuario_id=usuario_id,
+        sede_id=usuario.sede_id,
         titulo=titulo,
         mensaje=mensaje,
     )

@@ -2,15 +2,17 @@
  * navigation — Navegación por rol (CP-DP-02).
  *
  * ADMINISTRADOR: Panel (KPIs), Tareas, Incidencias, Habitaciones, Alertas, Usuarios.
- * RECEPCION: Tareas, Incidencias, Habitaciones, Alertas.
+ * RECEPCION: Panel, Tareas, Incidencias, Habitaciones, Alertas.
  * OPERARIO: Habitaciones (solo las suyas) y su registro fotográfico.
  *
  * Rutas de stack (nombres exigidos por las screens existentes):
  * TaskDetail, CreateTask, IncidentDetail, CreateIncident, RoomDetail,
- * HabitacionForm, UsuarioForm, Privacy, AdminSolicitudes.
+ * HabitacionForm, UsuarioForm, Privacy, AdminSolicitudes, LostObjects,
+ * LostObjectDetail, LostObjectForm, Inventario, InventarioForm, Sedes, SedeForm.
  */
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
@@ -35,17 +37,24 @@ import UsuarioFormScreen from '../screens/admin/UsuarioFormScreen';
 import HistorialHabitacionesScreen from '../screens/admin/HistorialHabitacionesScreen';
 import PrivacyScreen from '../screens/privacy/PrivacyScreen';
 import AdminSolicitudesScreen from '../screens/privacy/AdminSolicitudesScreen';
+import LostObjectsScreen from '../screens/lostobjects/LostObjectsScreen';
+import LostObjectDetailScreen from '../screens/lostobjects/LostObjectDetailScreen';
+import LostObjectFormScreen from '../screens/lostobjects/LostObjectFormScreen';
+import InventoryScreen from '../screens/inventory/InventoryScreen';
+import InventoryFormScreen from '../screens/inventory/InventoryFormScreen';
+import SedesScreen from '../screens/sedes/SedesScreen';
+import SedeFormScreen from '../screens/sedes/SedeFormScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const TAB_ICONS = {
-  Panel: '✦',
-  Tareas: '✓',
-  Incidencias: '⚠',
-  Habitaciones: '⌂',
-  Alertas: '🔔',
-  Usuarios: '👤',
+  Panel: 'grid-outline',
+  Tareas: 'checkmark-circle-outline',
+  Incidencias: 'warning-outline',
+  Habitaciones: 'bed-outline',
+  Alertas: 'notifications-outline',
+  Usuarios: 'people-outline',
 };
 
 const TAB_SCREENS = {
@@ -62,7 +71,7 @@ function tabsForRole(rol) {
     return ['Panel', 'Tareas', 'Incidencias', 'Habitaciones', 'Alertas', 'Usuarios'];
   }
   if (rol === 'RECEPCION') {
-    return ['Tareas', 'Incidencias', 'Habitaciones', 'Alertas'];
+    return ['Panel', 'Tareas', 'Incidencias', 'Habitaciones', 'Alertas'];
   }
   return ['Habitaciones'];
 }
@@ -70,7 +79,7 @@ function tabsForRole(rol) {
 function TabIcon({ icon, color, badge }) {
   return (
     <View style={styles.iconWrap}>
-      <Text style={[styles.icon, { color }]}>{icon}</Text>
+      <Ionicons name={icon} size={22} color={color} />
       {badge ? (
         <View style={styles.iconBadge}>
           <Text style={styles.iconBadgeText}>{badge}</Text>
@@ -227,6 +236,41 @@ export default function AppNavigator() {
         name="AdminSolicitudes"
         component={AdminSolicitudesScreen}
         options={{ title: 'Solicitudes de derechos' }}
+      />
+      <Stack.Screen
+        name="LostObjects"
+        component={LostObjectsScreen}
+        options={{ title: 'Objetos perdidos' }}
+      />
+      <Stack.Screen
+        name="LostObjectDetail"
+        component={LostObjectDetailScreen}
+        options={{ title: 'Objeto perdido' }}
+      />
+      <Stack.Screen
+        name="LostObjectForm"
+        component={LostObjectFormScreen}
+        options={{ title: 'Objeto perdido', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="Inventario"
+        component={InventoryScreen}
+        options={{ title: 'Inventario' }}
+      />
+      <Stack.Screen
+        name="InventarioForm"
+        component={InventoryFormScreen}
+        options={{ title: 'Artículo de inventario', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="Sedes"
+        component={SedesScreen}
+        options={{ title: 'Sedes' }}
+      />
+      <Stack.Screen
+        name="SedeForm"
+        component={SedeFormScreen}
+        options={{ title: 'Sede', presentation: 'modal' }}
       />
     </Stack.Navigator>
   );

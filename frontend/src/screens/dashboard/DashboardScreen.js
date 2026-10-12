@@ -3,7 +3,9 @@
  * GET /core/kpis/ → { kpis: [...] } con campos exactos de apps/core/kpis.py.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { kpiService } from '../../services/kpiService';
 import { colors, fonts, spacing, radius } from '../../theme';
@@ -17,6 +19,12 @@ import {
   SectionTitle,
   makeErrorHandler,
 } from '../../components/ui';
+
+const ACTIONS = [
+  { route: 'LostObjects', label: 'Objetos perdidos', icon: 'briefcase-outline' },
+  { route: 'Inventario', label: 'Inventario', icon: 'cube-outline' },
+  { route: 'Sedes', label: 'Sedes', icon: 'location-outline' },
+];
 
 const KPI_LABELS = {
   promedio_minutos: 'Promedio de respuesta',
@@ -43,13 +51,10 @@ function fmtValue(key, v) {
 
 function KpiCard({ kpi }) {
   const entries = Object.entries(kpi || {}).filter(([key]) => key !== 'kpi');
-  const pctKey =
-    kpi.porcentaje !== undefined
-      ? 'porcentaje'
-      : kpi.porcentaje_sin_conflicto !== undefined
-        ? 'porcentaje_sin_conflicto'
-        : null;
-  const pct = pctKey !== null ? Number(kpi[pctKey]) : NaN;
+  let pctKey = null;
+  if (kpi.porcentaje !== undefined) pctKey = 'porcentaje';
+  else if (kpi.porcentaje_sin_conflicto !== undefined) pctKey = 'porcentaje_sin_conflicto';
+  const pct = pctKey !== null ? Number(kpi[pctKey]) : Number.NaN;
   const meta = Number(kpi.meta_porcentaje);
   const ok = !Number.isNaN(pct) && !Number.isNaN(meta) && pct >= meta;
   return (
@@ -69,14 +74,20 @@ function KpiCard({ kpi }) {
         </View>
       )}
       {entries.map(([key, value]) => (
-        <Row key={key} label={KPI_LABELS[key] || key.replace(/_/g, ' ')} value={fmtValue(key, value)} />
+        <Row
+          key={key}
+          label={KPI_LABELS[key] || key.replaceAll('_', ' ')}
+          value={fmtValue(key, value)}
+        />
       ))}
     </Card>
   );
 }
 
 export default function DashboardScreen() {
+  const navigation = useNavigation();
   const { user, logout } = useAuth();
+  const esAdmin = user?.rol_nombre === 'ADMINISTRADOR';
   const [kpis, setKpis] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -84,6 +95,11 @@ export default function DashboardScreen() {
 
   const load = useCallback(
     async (silent = false) => {
+      if (!esAdmin) {
+        setKpis([]);
+        setError('');
+        return;
+      }
       if (!silent) setKpis(null);
       setRefreshing(true);
       try {
@@ -97,27 +113,50 @@ export default function DashboardScreen() {
         setRefreshing(false);
       }
     },
-    [onError],
+    [esAdmin, onError],
   );
 
   useEffect(() => {
     load();
   }, [load]);
 
-  if (!kpis && !error) return <Loading label="Cargando panel…" />;
+  if (esAdmin && !kpis && !error) return <Loading label="Cargando panel…" />;
 
   return (
     <Screen refreshing={refreshing} onRefresh={() => load(true)}>
       <Text style={styles.hello}>Hola, {user?.nombre || 'NORUS'}</Text>
       <Badge label={user?.rol_nombre || ''} color={colors.primaryLight} />
-      <SectionTitle>Panel de KPIs</SectionTitle>
-      {error ? <ErrorBanner message={error} /> : null}
-      {kpis && kpis.length === 0 && !error && (
-        <Text style={styles.empty}>Sin mediciones todavía.</Text>
-      )}
-      {kpis?.map((k, i) => (
-        <KpiCard key={k.kpi || i} kpi={k} />
-      ))}
+
+      <SectionTitle>Panel de acción</SectionTitle>
+      <View style={styles.actionGrid}>
+        {ACTIONS.map((action) => (
+          <TouchableOpacity
+            key={action.route}
+            style={styles.actionCard}
+            onPress={() => navigation.navigate(action.route)}
+            accessibilityRole="button"
+            accessibilityLabel={action.label}
+          >
+            <Ionicons name={action.icon} size={26} color={colors.primary} />
+            <Text style={styles.actionLabel} numberOfLines={1}>
+              {action.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {esAdmin ? (
+        <>
+          <SectionTitle>Panel de KPIs</SectionTitle>
+          {error ? <ErrorBanner message={error} /> : null}
+          {kpis?.length === 0 && !error && (
+            <Text style={styles.empty}>Sin mediciones todavía.</Text>
+          )}
+          {kpis?.map((k, i) => (
+            <KpiCard key={k.kpi || i} kpi={k} />
+          ))}
+        </>
+      ) : null}
     </Screen>
   );
 }
@@ -144,4 +183,33 @@ const styles = StyleSheet.create({
   },
   barFill: { height: 6, borderRadius: radius.pill },
   empty: { fontFamily: fonts.body, color: colors.textMuted, textAlign: 'center' },
+  actionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  actionCard: {
+    width: '31.5%',
+    minHeight: 86,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primarySoft,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
+  actionIcon: {
+    fontSize: 22,
+    marginBottom: spacing.xs,
+  },
+  actionLabel: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    color: colors.primary,
+    textAlign: 'center',
+  },
 });

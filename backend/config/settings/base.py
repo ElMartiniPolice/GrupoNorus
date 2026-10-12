@@ -37,6 +37,7 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     'apps.core',
     'apps.users',
+    'apps.sedes',
     'apps.rooms',
     'apps.tasks',
     'apps.incidents',
@@ -45,6 +46,9 @@ LOCAL_APPS = [
     # Ley N° 21.719: aviso de privacidad, consentimiento, derechos del
     # titular y bitácora de auditoría de accesos.
     'apps.privacy',
+    # Objetos perdidos (con imagen adjunta) e inventario por sede.
+    'apps.lostobjects',
+    'apps.inventory',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

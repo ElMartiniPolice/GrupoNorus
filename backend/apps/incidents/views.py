@@ -9,6 +9,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
 from apps.core.permissions import is_admin, is_recepcion
 from apps.notifications.services import notificar
@@ -38,11 +39,18 @@ class IncidenciaViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
+        if user.sede_id:
+            qs = qs.filter(reportado_por__sede_id=user.sede_id)
+        else:
+            qs = qs.none()
         if not (is_admin(user) or is_recepcion(user)):
             qs = qs.filter(reportado_por=user)
         return qs
 
     def perform_create(self, serializer):
+        habitacion = serializer.validated_data.get('habitacion')
+        if habitacion and habitacion.sede_id != self.request.user.sede_id:
+            raise ValidationError('La habitación debe pertenecer a la sede activa.')
         incidencia = serializer.save(reportado_por=self.request.user)
         # CP-ALE-01 — alerta automática para incidencias críticas.
         if incidencia.severidad == 'CRITICO':
@@ -54,6 +62,7 @@ class IncidenciaViewSet(viewsets.ModelViewSet):
             coordinadores = Usuario.objects.filter(
                 is_active=True,
                 rol__nombre__in=['ADMINISTRADOR', 'RECEPCION'],
+                sede_id=self.request.user.sede_id,
             )
             for coordinador in coordinadores:
                 notificar(coordinador.id, 'Alerta: incidencia crítica', mensaje)

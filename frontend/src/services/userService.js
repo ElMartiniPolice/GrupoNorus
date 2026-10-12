@@ -16,7 +16,7 @@ export const userService = {
     const { data } = await api.get(`/users/usuarios/${id}/`);
     return data;
   },
-  /** payload: {rut, nombre, apellido, telefono, rol, area, password} */
+  /** payload: {rut, nombre, apellido, telefono, rol, area, sede, password} */
   async create(payload) {
     const { data } = await api.post('/users/usuarios/', payload);
     return data;

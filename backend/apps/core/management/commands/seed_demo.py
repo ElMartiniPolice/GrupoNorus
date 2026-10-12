@@ -24,6 +24,7 @@ from apps.evidence.models import EvidenciaFotografica
 from apps.incidents.models import Incidencia
 from apps.notifications.models import Notificacion
 from apps.rooms.models import Habitacion, RegistroEstadia, TipoHabitacion
+from apps.sedes.models import Sede
 from apps.tasks.models import AsignacionTarea, HistorialEstadoTarea
 from apps.users.models import Area, Rol, Usuario
 
@@ -52,6 +53,10 @@ class Command(BaseCommand):
         area_recepcion, _ = Area.objects.get_or_create(nombre='RECEPCION')
         area_mantencion, _ = Area.objects.get_or_create(nombre='MANTENCION')
         area_housekeeping, _ = Area.objects.get_or_create(nombre='HOUSEKEEPING')
+        sede_demo, _ = Sede.objects.get_or_create(
+            nombre='Sede principal',
+            defaults={'direccion': 'Por definir', 'activo': True},
+        )
 
         # ------------------------------------------------------------------
         # 2. Usuarios demo (CP-AUT-01) — contraseña: norus123
@@ -67,8 +72,12 @@ class Command(BaseCommand):
                     telefono=telefono,
                     rol=rol,
                     area=area,
+                    sede=sede_demo,
                     is_staff=is_staff,
                 )
+            elif usuario.sede_id != sede_demo.id:
+                usuario.sede = sede_demo
+                usuario.save(update_fields=['sede'])
             return usuario
 
         admin = crear_usuario(
@@ -105,8 +114,11 @@ class Command(BaseCommand):
         def crear_habitacion(numero, tipo, estado):
             habitacion, _ = Habitacion.objects.get_or_create(
                 numero=numero,
-                defaults={'tipo': tipo, 'estado': estado},
+                defaults={'tipo': tipo, 'estado': estado, 'sede': sede_demo},
             )
+            if habitacion.sede_id != sede_demo.id:
+                habitacion.sede = sede_demo
+                habitacion.save(update_fields=['sede'])
             return habitacion
 
         h101 = crear_habitacion('101', tipo_simple, 'DISPONIBLE')

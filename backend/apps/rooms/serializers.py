@@ -8,6 +8,8 @@ Contrato de API (según las pantallas del frontend):
 from rest_framework import serializers
 
 from apps.core.fields import NestedPKRelatedField
+from apps.sedes.models import Sede
+from apps.sedes.serializers import SedeMiniSerializer
 from apps.users.serializers import UsuarioMiniSerializer
 from .models import (
     CambioEstadoHabitacion,
@@ -24,11 +26,13 @@ class TipoHabitacionSerializer(serializers.ModelSerializer):
 
 
 class HabitacionMiniSerializer(serializers.ModelSerializer):
-    """Versión mínima para anidar en tareas/incidencias: {id, numero}."""
+    """Versión mínima para anidar en tareas/incidencias: {id, numero, sede}."""
+
+    sede = SedeMiniSerializer(read_only=True)
 
     class Meta:
         model = Habitacion
-        fields = ['id', 'numero']
+        fields = ['id', 'numero', 'sede']
 
 
 class HabitacionSerializer(serializers.ModelSerializer):
@@ -36,10 +40,16 @@ class HabitacionSerializer(serializers.ModelSerializer):
         queryset=TipoHabitacion.objects.all(),
         serializer_class=TipoHabitacionSerializer,
     )
+    sede = NestedPKRelatedField(
+        queryset=Sede.objects.all(),
+        serializer_class=SedeMiniSerializer,
+        required=False,
+        allow_null=True,
+    )
 
     class Meta:
         model = Habitacion
-        fields = ['id', 'numero', 'tipo', 'estado']
+        fields = ['id', 'numero', 'tipo', 'sede', 'estado']
 
 
 class RegistroEstadiaSerializer(serializers.ModelSerializer):
