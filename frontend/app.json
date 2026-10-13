@@ -16,6 +16,9 @@
     },
     "android": {
       "package": "com.gruponorus.app"
-    }
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
   }
 }

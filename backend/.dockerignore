@@ -1,0 +1,15 @@
+.venv/
+.venv-*/
+__pycache__/
+*.pyc
+db.sqlite3
+media/
+staticfiles/
+.env
+.env.*
+*.log
+.git/
+.gitignore
+verify_*.py
+probe_*.py
+seed_db.py
