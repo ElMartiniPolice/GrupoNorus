@@ -69,11 +69,19 @@ class HabitacionViewSet(viewsets.ModelViewSet):
             return [IsAdminOrRecepcion()]
         return [IsAuthenticated()]
 
+    from rest_framework.exceptions import ValidationError as DRFValidationError
+
     def perform_create(self, serializer):
-        serializer.save(sede=self.request.user.sede)
+        sede = self.request.user.sede
+        if sede is None:
+            raise DRFValidationError(
+                {'detail': 'Su usuario no tiene una sede asignada.'}
+            )
+        serializer.save(sede=sede)
 
     def perform_update(self, serializer):
-        serializer.save(sede=self.request.user.sede)
+        # No reasignar la sede al editar.
+        serializer.save()
 
     @action(detail=True, methods=['post'])
     def cambiar_estado(self, request, pk=None):

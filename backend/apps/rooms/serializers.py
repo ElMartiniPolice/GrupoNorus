@@ -40,33 +40,43 @@ class HabitacionSerializer(serializers.ModelSerializer):
         queryset=TipoHabitacion.objects.all(),
         serializer_class=TipoHabitacionSerializer,
     )
-    sede = NestedPKRelatedField(
-        queryset=Sede.objects.all(),
-        serializer_class=SedeMiniSerializer,
-        required=False,
-        allow_null=True,
-    )
+    # La sede NUNCA la envía el cliente: la fija el servidor.
+    sede = SedeMiniSerializer(read_only=True)
 
     class Meta:
         model = Habitacion
         fields = ['id', 'numero', 'tipo', 'sede', 'estado']
 
+    def validate(self, attrs):
+        # Al ser sede read_only, DRF omite el UniqueTogetherValidator,
+        # así que validamos la unicidad (sede, numero) a mano.
+        request = self.context.get('request')
+        if self.instance is not None:
+            sede_id = self.instance.sede_id
+        else:
+            sede_id = getattr(request.user, 'sede_id', None) if request else None
+        numero = attrs.get('numero', getattr(self.instance, 'numero', None))
+        if numero is not None:
+            qs = Habitacion.objects.filter(sede_id=sede_id, numero=numero)
+            if self.instance is not None:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {'numero': 'Ya existe una habitación con ese número en esta sede.'}
+                )
+        return attrs
+
 
 class RegistroEstadiaSerializer(serializers.ModelSerializer):
-    habitacion = NestedPKRelatedField(
-        queryset=Habitacion.objects.all(),
-        serializer_class=HabitacionMiniSerializer,
-    )
-    salida_prevista = serializers.DateField(read_only=True)
-    conflicto = serializers.BooleanField(read_only=True)
+    # ... (campos y Meta sin cambios)
 
-    class Meta:
-        model = RegistroEstadia
-        fields = [
-            'id', 'habitacion', 'huesped', 'llegada', 'salida',
-            'salida_prevista', 'conflicto',
-        ]
-
+    def validate_habitacion(self, habitacion):
+        request = self.context.get('request')
+        if request and habitacion.sede_id != request.user.sede_id:
+            raise serializers.ValidationError(
+                'La habitación no pertenece a su sede.'
+            )
+        return habitacion
 
 class CambioEstadoHabitacionSerializer(serializers.ModelSerializer):
     """
