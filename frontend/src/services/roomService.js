@@ -1,4 +1,5 @@
 import api from './api';
+import { appendImage } from '../utils/formImage';
 
 /**
  * Habitaciones — api/rooms/ (CU1/CU3/CU10, CP-HAB-01).
@@ -52,11 +53,7 @@ export const roomService = {
     const form = new FormData();
     form.append('estado', String(estado));
     if (photo) {
-      form.append('imagen', {
-        uri: photo.uri,
-        type: photo.type || 'image/jpeg',
-        name: photo.name || `cambio_estado_${Date.now()}.jpg`,
-      });
+      await appendImage(form, 'imagen', photo, 'cambio_estado');
     }
     const { data } = await api.post(
       `/rooms/habitaciones/${id}/cambiar_estado/`,

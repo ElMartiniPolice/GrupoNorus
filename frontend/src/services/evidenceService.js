@@ -1,4 +1,5 @@
 import api from './api';
+import { appendImage } from '../utils/formImage';
 
 /**
  * Evidencias — api/evidence/ (CP-FOT-01, CP-DP-05).
@@ -34,11 +35,7 @@ export const evidenceService = {
   async subir(incidenciaId, photo) {
     const form = new FormData();
     form.append('incidencia', String(incidenciaId));
-    form.append('imagen', {
-      uri: photo.uri,
-      type: photo.type || 'image/jpeg',
-      name: photo.name || `evidencia_${Date.now()}.jpg`,
-    });
+    await appendImage(form, 'imagen', photo, 'evidencia');
     const { data } = await api.post('/evidence/evidencias/', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });

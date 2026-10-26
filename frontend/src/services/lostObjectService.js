@@ -1,4 +1,5 @@
 import api from './api';
+import { appendImage } from '../utils/formImage';
 
 /**
  * Objetos perdidos — api/lostobjects/ (con imagen adjunta).
@@ -6,7 +7,7 @@ import api from './api';
  * ubicacion, estado, imagen, reportado_por, entregado_a, encontrado_en,
  * entregado_en}. Estados: EN_RESGUARDO / ENTREGADO / DESCARTADO.
  */
-function buildForm(payload) {
+async function buildForm(payload) {
   const { imagen, ...rest } = payload;
   const form = new FormData();
   Object.entries(rest).forEach(([key, value]) => {
@@ -15,11 +16,7 @@ function buildForm(payload) {
     }
   });
   if (imagen?.uri) {
-    form.append('imagen', {
-      uri: imagen.uri,
-      type: imagen.type || 'image/jpeg',
-      name: imagen.name || `objeto_${Date.now()}.jpg`,
-    });
+    await appendImage(form, 'imagen', imagen, 'objeto');
   }
   return form;
 }
@@ -35,7 +32,7 @@ export const lostObjectService = {
   },
   async create(payload) {
     if (payload.imagen?.uri) {
-      const { data } = await api.post('/lostobjects/objetos/', buildForm(payload), {
+      const { data } = await api.post('/lostobjects/objetos/', await buildForm(payload), {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       return data;
@@ -45,7 +42,7 @@ export const lostObjectService = {
   },
   async update(id, payload) {
     if (payload.imagen?.uri) {
-      const { data } = await api.patch(`/lostobjects/objetos/${id}/`, buildForm(payload), {
+      const { data } = await api.patch(`/lostobjects/objetos/${id}/`, await buildForm(payload), {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       return data;
@@ -55,11 +52,7 @@ export const lostObjectService = {
   },
   async adjuntarImagen(id, photo) {
     const form = new FormData();
-    form.append('imagen', {
-      uri: photo.uri,
-      type: photo.type || 'image/jpeg',
-      name: photo.name || `objeto_${Date.now()}.jpg`,
-    });
+    await appendImage(form, 'imagen', photo, 'objeto');
     const { data } = await api.patch(`/lostobjects/objetos/${id}/`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });

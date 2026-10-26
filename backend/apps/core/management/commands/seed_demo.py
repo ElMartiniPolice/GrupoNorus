@@ -112,14 +112,17 @@ class Command(BaseCommand):
         tipo_suite, _ = TipoHabitacion.objects.get_or_create(nombre='Suite')
 
         def crear_habitacion(numero, tipo, estado):
-            habitacion, _ = Habitacion.objects.get_or_create(
+            habitacion, creada = Habitacion.objects.get_or_create(
                 numero=numero,
-                defaults={'tipo': tipo, 'estado': estado, 'sede': sede_demo},
+                sede=sede_demo,
+                defaults={
+                    'tipo': tipo,
+                    'estado': estado,
+                }
             )
-            if habitacion.sede_id != sede_demo.id:
-                habitacion.sede = sede_demo
-                habitacion.save(update_fields=['sede'])
+
             return habitacion
+
 
         h101 = crear_habitacion('101', tipo_simple, 'DISPONIBLE')
         h102 = crear_habitacion('102', tipo_doble, 'OCUPADA')
