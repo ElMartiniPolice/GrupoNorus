@@ -86,8 +86,10 @@ export default function TasksScreen({ navigation }) {
             </View>
             <Text style={styles.meta}>Habitación: {habLabel(t.habitacion)}</Text>
             <View style={styles.cardFoot}>
-              <Badge label={`Prioridad ${t.prioridad}`} color={prioridadColor[t.prioridad] || colors.textMuted} />
-              {!esOperario && <Text style={styles.asignado}>{userLabel(t.asignado_a)}</Text>}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <Badge label={`Prioridad ${t.prioridad}`} color={prioridadColor[t.prioridad] || colors.textMuted} />
+                {!esOperario && <Text style={styles.asignado}>{userLabel(t.asignado_a)}</Text>}
+              </View>
             </View>
           </Card>
         ))}
@@ -130,11 +132,11 @@ const styles = StyleSheet.create({
   meta: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, marginBottom: 6 },
   cardFoot: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     gap: spacing.sm,
   },
-  asignado: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted, flex: 1, textAlign: 'right' },
+  asignado: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted },
   fab: {
     position: 'absolute',
     bottom: 24,

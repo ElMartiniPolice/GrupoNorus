@@ -8,10 +8,11 @@ export function cleanRut(rut) {
   return (rut || '').toString().toUpperCase().replace(/[^0-9K]/g, '');
 }
 
-/** Valida RUT chileno con módulo 11. */
+/** Valida RUT chileno con módulo 11. Permite RUTs cortos (ej: 9.XXX.XXX-X). */
 export function validarRut(rut) {
   const clean = cleanRut(rut);
-  if (clean.length < 7 || clean.length > 9) return false;
+  // Permitir RUTs de 2 a 9 caracteres (1-8 dígitos cuerpo + 1 DV)
+  if (clean.length < 2 || clean.length > 9) return false;
   const body = clean.slice(0, -1);
   const dv = clean.slice(-1);
   if (!/^\d+$/.test(body)) return false;

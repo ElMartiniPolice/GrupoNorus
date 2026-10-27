@@ -96,11 +96,13 @@ export default function UsuariosScreen({ navigation }) {
             </View>
             <Text style={styles.meta}>RUT: {rutTxt(u)}</Text>
             <View style={styles.cardFoot}>
-              <Badge label={u.area_nombre ?? '—'} color={colors.primarySoft} />
-              <Badge
-                label={u.is_active ? 'Activo' : 'Inactivo'}
-                color={u.is_active ? colors.primaryLight : colors.textMuted}
-              />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <Badge label={u.area_nombre ?? '—'} color={colors.primarySoft} />
+                <Badge
+                  label={u.is_active ? 'Activo' : 'Inactivo'}
+                  color={u.is_active ? colors.primaryLight : colors.textMuted}
+                />
+              </View>
             </View>
           </Card>
         ))}
@@ -168,8 +170,8 @@ const styles = StyleSheet.create({
   },
   cardFoot: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: spacing.sm,
   },
   fab: {

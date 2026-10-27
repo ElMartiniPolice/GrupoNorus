@@ -33,6 +33,7 @@ import RoomDetailScreen from '../screens/rooms/RoomDetailScreen';
 import AlertasScreen from '../screens/alertas/AlertasScreen';
 import UsuariosScreen from '../screens/admin/UsuariosScreen';
 import UsuarioFormScreen from '../screens/admin/UsuarioFormScreen';
+import PerfilScreen from '../screens/auth/PerfilScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -44,26 +45,28 @@ const TAB_ICONS = {
   Habitaciones: '⌂',
   Alertas: '🔔',
   Usuarios: '👤',
+  Perfil: '👤',
 };
 
 const TAB_SCREENS = {
   Panel: DashboardScreen,
   Tareas: TasksScreen,
-  Incidencias: IncidenciasScreen,
   Habitaciones: RoomsScreen,
+  Incidencias: IncidenciasScreen,
   Alertas: AlertasScreen,
   Usuarios: UsuariosScreen,
+  Perfil: PerfilScreen,
 };
 
 function tabsForRole(rol) {
   if (rol === 'ADMINISTRADOR') {
-    return ['Panel', 'Tareas', 'Incidencias', 'Habitaciones', 'Alertas', 'Usuarios'];
+    return ['Panel', 'Tareas', 'Habitaciones', 'Incidencias', 'Alertas', 'Usuarios', 'Perfil'];
   }
   if (rol === 'RECEPCION') {
-    return ['Tareas', 'Incidencias', 'Habitaciones', 'Alertas'];
+    return ['Tareas', 'Habitaciones', 'Incidencias', 'Alertas', 'Perfil'];
   }
   // CP-DP-02 — OPERARIO: solo sus habitaciones y su registro fotográfico.
-  return ['Habitaciones'];
+  return ['Habitaciones', 'Incidencias', 'Perfil'];
 }
 
 function TabIcon({ icon, color, badge }) {
@@ -134,7 +137,7 @@ function MainTabs() {
               rol === 'OPERARIO' && name === 'Habitaciones'
                 ? 'Mis Habitaciones'
                 : name,
-            headerRight: () => <HeaderRight />,
+            headerRight: name === 'Perfil' ? undefined : () => <HeaderRight />,
             tabBarIcon: ({ color }) => (
               <TabIcon
                 icon={TAB_ICONS[name]}

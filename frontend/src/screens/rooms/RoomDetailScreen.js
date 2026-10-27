@@ -73,7 +73,7 @@ export default function RoomDetailScreen({ route }) {
   const [huesped, setHuesped] = useState('');
   const [llegada, setLlegada] = useState(fechaISO(new Date()));
   const [salida, setSalida] = useState(fechaISO(new Date(Date.now() + 86400000)));
-  const onError = makeErrorHandler('cargar la habitación');
+  const onError = makeErrorHandler(logout);
 
   const load = useCallback(async () => {
     try {
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 110,
     borderRadius: radius.md,
-    backgroundColor: '#ECECEC',
+    backgroundColor: colors.surface,
   },
   fotoTitulo: {
     fontFamily: fonts.body,

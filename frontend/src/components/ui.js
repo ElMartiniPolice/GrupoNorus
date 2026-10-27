@@ -127,7 +127,7 @@ export function Button({ title, onPress, variant = 'primary', disabled, loading,
       {loading ? (
         <ActivityIndicator color={v.spinner} />
       ) : (
-        <Text style={[styles.btnText, v.text]}>{title}</Text>
+        <Text style={[styles.btnText, v.text]}>{title.toUpperCase()}</Text>
       )}
     </TouchableOpacity>
   );
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   },
   rowLabel: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, flex: 1 },
   rowValue: {
-    fontFamily: fonts.bodyBold,
+    fontFamily: fonts.body,
     fontSize: 13,
     color: colors.text,
     flex: 1.4,

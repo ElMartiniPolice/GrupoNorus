@@ -87,6 +87,41 @@ class PerfilView(APIView):
         return Response(UsuarioSerializer(request.user).data)
 
 
+class CambiarPasswordView(APIView):
+    """
+    Permite al usuario autenticado cambiar su propia contraseña.
+    Requiere contraseña actual y nueva contraseña (mínimo 6 caracteres).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        password_actual = request.data.get('password_actual')
+        password_nueva = request.data.get('password_nueva')
+
+        if not password_actual or not password_nueva:
+            return Response(
+                {'detail': 'Se requiere contraseña actual y nueva contraseña.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(password_nueva) < 6:
+            return Response(
+                {'detail': 'La nueva contraseña debe tener al menos 6 caracteres.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not user.check_password(password_actual):
+            return Response(
+                {'detail': 'La contraseña actual es incorrecta.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(password_nueva)
+        user.save(update_fields=['password'])
+        return Response({'detail': 'Contraseña actualizada correctamente.'})
+
+
 class RolViewSet(viewsets.ReadOnlyModelViewSet):
     """Catálogo de roles (para formularios del admin)."""
     queryset = Rol.objects.all()

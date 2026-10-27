@@ -5,6 +5,7 @@ import api from './api';
  *  api/users/usuarios  (CRUD solo admin, CP-USR-01)
  *  api/users/roles     (solo lectura)
  *  api/users/areas     (solo lectura)
+ *  api/auth/cambiar-password/ (cambio de contraseña del usuario autenticado)
  * DRF pagination 20 → {count, results} en listados.
  */
 export const userService = {
@@ -35,5 +36,13 @@ export const userService = {
   async areas() {
     const { data } = await api.get('/users/areas/');
     return data.results ?? data;
+  },
+  /** Cambiar contraseña del usuario autenticado */
+  async cambiarPassword(password_actual, password_nueva) {
+    const { data } = await api.post('/auth/cambiar-password/', {
+      password_actual,
+      password_nueva,
+    });
+    return data;
   },
 };

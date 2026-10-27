@@ -7,6 +7,7 @@ def validar_rut(rut):
     """
     Valida un RUT chileno en formato 12345678-9 (o con puntos).
     Retorna True/False. No considera 'K' minúscula (se normaliza antes).
+    Permite RUTs cortos (ej: 9.XXX.XXX-X o un dígito inicial).
     """
     import re
 
@@ -18,7 +19,11 @@ def validar_rut(rut):
     if dv not in '0123456789K':
         return False
 
-    suma, multiplo, d = 0, 2, 0
+    # Permitir RUTs de 1 a 8 dígitos en el cuerpo (mínimo 1 dígito + DV)
+    if len(cuerpo) < 1 or len(cuerpo) > 8:
+        return False
+
+    suma, multiplo = 0, 2
     for r in reversed(cuerpo):
         suma += int(r) * multiplo
         multiplo = 2 if multiplo == 7 else multiplo + 1

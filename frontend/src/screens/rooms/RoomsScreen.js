@@ -98,6 +98,14 @@ export default function RoomsScreen({ navigation }) {
             />
           </View>
           <Text style={styles.meta}>Tipo: {tipoLabel(r.tipo)}</Text>
+          <View style={styles.cardFoot}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Badge
+                label={r.estado ?? '—'}
+                color={roomEstadoColor[r.estado] || colors.textMuted}
+              />
+            </View>
+          </View>
         </Card>
       ))}
     </Screen>
@@ -149,5 +157,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     marginBottom: 6,
+  },
+  cardFoot: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
 });
