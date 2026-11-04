@@ -4,7 +4,7 @@
  * WebSocket). Tocar una alerta la marca como leída; "Marcar todas" limpia
  * el contador del badge de la barra inferior.
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useNotifications } from '../../context/NotificationContext';
 import { colors, fonts, spacing } from '../../theme';
@@ -23,6 +23,12 @@ export default function AlertasScreen() {
     useNotifications();
   const lista = notifications || [];
 
+  // Memoize filtered notifications
+  const unreadNotifications = useMemo(
+    () => lista.filter((n) => !n.leida),
+    [lista],
+  );
+
   return (
     <Screen>
       <SectionTitle>Alertas</SectionTitle>
@@ -39,7 +45,26 @@ export default function AlertasScreen() {
 
       {lista.length === 0 ? <EmptyState message="Sin alertas por ahora." icon="🔔" /> : null}
 
-      {lista.map((n, idx) => (
+      {unreadNotifications.length > 0 && <SectionTitle>No leídas</SectionTitle>}
+      {unreadNotifications.map((n, idx) => (
+        <Card
+          key={n.id ?? idx}
+          onPress={n.leida ? undefined : () => markRead(n.id)}
+        >
+          <View style={styles.cardHead}>
+            <Text style={styles.titulo}>{n.titulo ?? 'Alerta'}</Text>
+            <Badge
+              label={n.leida ? 'Leída' : 'Nueva'}
+              color={n.leida ? colors.textMuted : colors.coral}
+            />
+          </View>
+          {n.mensaje ? <Text style={styles.meta}>{n.mensaje}</Text> : null}
+          <Text style={styles.fecha}>{formatFecha(n.creada_en)}</Text>
+        </Card>
+      ))}
+
+      {lista.filter((n) => n.leida).length > 0 && <SectionTitle>Leídas</SectionTitle>}
+      {lista.filter((n) => n.leida).map((n, idx) => (
         <Card
           key={n.id ?? idx}
           onPress={n.leida ? undefined : () => markRead(n.id)}

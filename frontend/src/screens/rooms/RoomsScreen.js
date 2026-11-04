@@ -3,8 +3,8 @@
  * Estados: DISPONIBLE / OCUPADA / LIMPIEZA / MANTENCION (roomEstadoColor).
  * Tocar una habitación abre su detalle (check-in CU3 / check-out CU1).
  */
-import React, { useCallback, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View, Animated } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { roomService } from '../../services/roomService';
@@ -20,6 +20,7 @@ import {
   makeErrorHandler,
 } from '../../components/ui';
 import { habLabel } from '../../utils/labels';
+import { useStaggeredAnimation, staggeredEntranceStyle } from '../../utils/animations';
 
 const ESTADOS = ['TODAS', 'DISPONIBLE', 'OCUPADA', 'LIMPIEZA', 'MANTENCION'];
 
@@ -35,7 +36,7 @@ export default function RoomsScreen({ navigation }) {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [estado, setEstado] = useState('TODAS');
-  const onError = makeErrorHandler(logout);
+  const onError = useCallback(makeErrorHandler(logout), [logout]);
 
   const load = useCallback(
     async (silent = false) => {
@@ -47,22 +48,40 @@ export default function RoomsScreen({ navigation }) {
         setError('');
       } catch (e) {
         const m = onError(e);
-        if (m) setError(m);
-      } finally {
-        setRefreshing(false);
-      }
-    },
-    [onError],
-  );
+                if (m) setError(m);
+              } finally {
+                setRefreshing(false);
+              }
+            },
+            [onError],
+          );
 
-  // Refresco silencioso al volver al foco (p. ej. tras un check-in/check-out).
-  useFocusEffect(
-    useCallback(() => {
-      load(true);
-    }, [load]),
-  );
+          useEffect(() => {
+            load();
+          }, [load]);
 
-  const visibles = (rooms || []).filter((r) => estado === 'TODAS' || r.estado === estado);
+          // Refresco silencioso al volver al foco (p. ej. tras un check-in/check-out).
+          useFocusEffect(
+            useCallback(() => {
+              load(true);
+            }, [load]),
+          );
+
+          // Memoize filtered rooms to avoid re-filtering on every render
+          const filteredRooms = useMemo(
+            () => {
+              if (!rooms) return [];
+              if (estado === 'TODAS') return rooms;
+              return rooms.filter((r) => r.estado === estado);
+            },
+            [rooms, estado],
+          );
+
+  // Staggered entrance animations
+  const cardAnims = useMemo(
+      () => useStaggeredAnimation(filteredRooms.length, 60, 300),
+      [filteredRooms.length]
+  );
 
   return (
     <Screen refreshing={refreshing} onRefresh={() => load(true)}>
@@ -84,29 +103,38 @@ export default function RoomsScreen({ navigation }) {
 
       {error ? <ErrorBanner message={error} /> : null}
       {!rooms && !error ? <Loading label="Cargando habitaciones…" /> : null}
-      {rooms && visibles.length === 0 && !error ? (
+            {rooms && filteredRooms.length === 0 && !error ? (
         <EmptyState message="No hay habitaciones para mostrar." />
       ) : null}
 
-      {visibles.map((r) => (
-        <Card key={r.id} onPress={() => navigation.navigate('RoomDetail', { id: r.id })}>
-          <View style={styles.cardHead}>
-            <Text style={styles.titulo}>Habitación {habLabel(r)}</Text>
-            <Badge
-              label={r.estado ?? '—'}
-              color={roomEstadoColor[r.estado] || colors.textMuted}
-            />
-          </View>
-          <Text style={styles.meta}>Tipo: {tipoLabel(r.tipo)}</Text>
-          <View style={styles.cardFoot}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            {filteredRooms.map((r, index) => (
+        <Animated.View
+          key={r.id}
+          style={staggeredEntranceStyle(cardAnims[index], 16)}
+        >
+          <Card
+            elevationLevel="level1"
+            key={r.id}
+            onPress={() => navigation.navigate('RoomDetail', { id: r.id })}
+          >
+            <View style={styles.cardHead}>
+              <Text style={styles.titulo}>Habitación {habLabel(r)}</Text>
               <Badge
                 label={r.estado ?? '—'}
                 color={roomEstadoColor[r.estado] || colors.textMuted}
               />
             </View>
-          </View>
-        </Card>
+            <Text style={styles.meta}>Tipo: {tipoLabel(r.tipo)}</Text>
+            <View style={styles.cardFoot}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <Badge
+                  label={r.estado ?? '—'}
+                  color={roomEstadoColor[r.estado] || colors.textMuted}
+                />
+              </View>
+            </View>
+          </Card>
+        </Animated.View>
       ))}
     </Screen>
   );

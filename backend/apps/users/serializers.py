@@ -58,7 +58,10 @@ class UsuarioCreateSerializer(serializers.ModelSerializer):
         value = value.upper().strip()
         if not validar_rut(value):
             raise serializers.ValidationError('RUT inválido.')
-        if Usuario.objects.filter(rut=value).exists():
+        queryset = Usuario.objects.filter(rut=value)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
             raise serializers.ValidationError('Ya existe un usuario con este RUT.')
         return value
 

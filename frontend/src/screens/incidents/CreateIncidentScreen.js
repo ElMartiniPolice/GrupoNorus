@@ -2,7 +2,7 @@
  * CreateIncidentScreen — CU8: Reportar incidencia.
  * POST /incidents/incidencias/ {titulo, descripcion, habitacion, severidad, requiere_evidencia}.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { incidentService, SEVERIDADES } from '../../services/incidentService';
@@ -30,7 +30,7 @@ export default function CreateIncidentScreen({ navigation }) {
   const [habitaciones, setHabitaciones] = useState([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const onError = makeErrorHandler(logout);
+  const onError = useCallback(makeErrorHandler(logout), [logout]);
 
   useEffect(() => {
     (async () => {
@@ -70,7 +70,7 @@ export default function CreateIncidentScreen({ navigation }) {
     <Screen>
       <SectionTitle>Reportar incidencia</SectionTitle>
       {error ? <ErrorBanner message={error} /> : null}
-      <Card>
+      <Card elevationLevel="level2">
         <Input
           label="Título"
           placeholder="Ej: Fuga de agua en baño"

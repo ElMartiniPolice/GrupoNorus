@@ -1,30 +1,14 @@
 /**
  * App — Punto de entrada de la aplicación (expo/AppEntry.js → componente App).
- *
- * Carga las seis fuentes de la marca (Cormorant SC, EB Garamond, Lato),
- * monta la cadena de providers (SafeArea → Auth → Notificaciones) y el
- * NavigationContainer. Sin sesión activa muestra LoginScreen (CU4); con
- * sesión muestra la navegación por rol (CP-DP-02).
+ * Las fuentes de Google Fonts se cargan vía CSS en web/index.html para mejor rendimiento.
+ * En nativo, useFonts las registra automáticamente.
  */
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
-import {
-  useFonts,
-  CormorantSC_700Bold,
-  CormorantSC_600SemiBold,
-} from '@expo-google-fonts/cormorant-sc';
-import {
-  EBGaramond_600SemiBold,
-  EBGaramond_400Regular,
-} from '@expo-google-fonts/eb-garamond';
-import {
-  Lato_400Regular,
-  Lato_700Bold,
-} from '@expo-google-fonts/lato';
-
+import { useFonts } from 'expo-font';
 import { colors } from './src/theme';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
@@ -45,26 +29,22 @@ const navTheme = {
 };
 
 function Root() {
-  // Las fuentes se registran bajo su nombre real (shorthand ES6) para que
-  // coincidan exactamente con los strings de fontFamily definidos en
-  // src/theme/index.js. Nunca usar claves como 'serif': son familias
-  // genéricas de CSS y el navegador las rechaza en new FontFace(),
-  // dejando useFonts sin resolver (splash eterno en web).
-  const [fontsLoaded, fontError] = useFonts({
-    CormorantSC_700Bold,
-    CormorantSC_600SemiBold,
-    EBGaramond_600SemiBold,
-    EBGaramond_400Regular,
-    Lato_400Regular,
-    Lato_700Bold,
-  });
   const { user, initializing } = useAuth();
 
-  // Degradación elegante: si una fuente falla, se continúa con las fuentes
-  // del sistema en lugar de quedar atrapados en la pantalla de carga.
-  const fontsReady = fontsLoaded || fontError;
+  // En web, las fuentes ya están cargadas vía CSS @font-face en web/index.html
+  // En nativo, useFonts las registra. No bloqueamos el renderizado.
+  if (Platform.OS !== 'web') {
+    useFonts({
+      'CormorantSC_700Bold': require('@expo-google-fonts/cormorant-sc/CormorantSC_700Bold.ttf'),
+      'CormorantSC_600SemiBold': require('@expo-google-fonts/cormorant-sc/CormorantSC_600SemiBold.ttf'),
+      'EBGaramond_600SemiBold': require('@expo-google-fonts/eb-garamond/EBGaramond_600SemiBold.ttf'),
+      'EBGaramond_400Regular': require('@expo-google-fonts/eb-garamond/EBGaramond_400Regular.ttf'),
+      'Lato_400Regular': require('@expo-google-fonts/lato/Lato_400Regular.ttf'),
+      'Lato_700Bold': require('@expo-google-fonts/lato/Lato_700Bold.ttf'),
+    });
+  }
 
-  if (!fontsReady || initializing) {
+  if (initializing) {
     return (
       <View style={styles.splash}>
         <Text style={styles.splashBrand}>NORUS</Text>

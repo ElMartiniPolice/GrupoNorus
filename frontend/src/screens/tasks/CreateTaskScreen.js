@@ -2,7 +2,7 @@
  * CreateTaskScreen — CU2: Asignar tarea (ADMINISTRADOR/RECEPCION).
  * POST /tasks/tareas/ {titulo, descripcion, habitacion, asignado_a, prioridad, estado}.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { taskService, PRIORIDADES } from '../../services/taskService';
@@ -31,7 +31,7 @@ export default function CreateTaskScreen({ navigation }) {
   const [usuarios, setUsuarios] = useState([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const onError = makeErrorHandler(logout);
+  const onError = useCallback(makeErrorHandler(logout), [logout]);
 
   useEffect(() => {
     (async () => {
@@ -79,7 +79,7 @@ export default function CreateTaskScreen({ navigation }) {
     <Screen>
       <SectionTitle>Nueva tarea</SectionTitle>
       {error ? <ErrorBanner message={error} /> : null}
-      <Card>
+      <Card elevationLevel="level2">
         <Input
           label="Título"
           placeholder="Ej: Reparación de calefacción"

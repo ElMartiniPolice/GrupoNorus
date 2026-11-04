@@ -3,9 +3,11 @@
  * Manual de Marca: #0B3C5D / #328CC1 / #B3CDE0 / #ECECEC / #FFC858 / #F25F5C.
  * Tipografías: Cormorant SC (títulos), EB Garamond (serif), Lato (cuerpo).
  */
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,11 +15,32 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Easing,
 } from 'react-native';
 import { colors, fonts, spacing, radius } from '../theme';
 import { BRAND_NAME, BRAND_TAGLINE } from '../config';
 import { apiErrorMessage } from '../services/api';
 import { useNotifications } from '../context/NotificationContext';
+
+// Card elevation levels — layered depth system
+const CARD_ELEVATION = {
+  level1: {  // Default list cards
+    boxShadow: '0 2px 10px rgba(11, 60, 93, 0.06)',
+    elevation: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  level2: {  // Detail screens, modals
+    boxShadow: '0 4px 16px rgba(11, 60, 93, 0.1)',
+    elevation: 4,
+    borderWidth: 0,
+  },
+  level3: {  // Floating actions, bottom sheets
+    boxShadow: '0 8px 24px rgba(11, 60, 93, 0.15)',
+    elevation: 8,
+    borderWidth: 0,
+  },
+};
 
 /** Contenedor base de pantalla (fondo gris claro del manual). */
 export function Screen({ children, scroll = true, style, contentStyle, refreshing, onRefresh }) {
@@ -58,12 +81,14 @@ export function BrandMark({ size = 34, light = false, style }) {
   );
 }
 
-/** Tarjeta blanca con esquinas suaves (superficie del manual). */
-export function Card({ children, style, onPress }) {
+/** Tarjeta blanca con esquinas suaves (superficie del manual). 
+ *  elevationLevel: 'level1' (default list), 'level2' (detail/modal), 'level3' (floating)
+ */
+export function Card({ children, style, onPress, elevationLevel = 'level1' }) {
   const Wrapper = onPress ? TouchableOpacity : View;
   return (
     <Wrapper
-      style={[styles.card, style]}
+      style={[styles.card, CARD_ELEVATION[elevationLevel], style]}
       onPress={onPress}
       activeOpacity={onPress ? 0.85 : 1}
     >
@@ -78,7 +103,7 @@ export function Badge({ label, color = colors.textMuted }) {
     <View
       style={[
         styles.badge,
-        { backgroundColor: `${color}1E`, borderColor: `${color}55` },
+        { backgroundColor: `${color}1E`, borderColor: `${color}55`, boxShadow: 'none' },
       ]}
     >
       <Text style={[styles.badgeText, { color }]}>{label}</Text>
@@ -114,42 +139,120 @@ const BTN_VARIANTS = {
   },
 };
 
-/** Botón con variantes de marca. */
+// useNativeDriver no está soportado en web
+const USE_NATIVE_DRIVER = Platform.OS !== 'web';
+
+/** Botón con variantes de marca y animación de press táctil. */
 export function Button({ title, onPress, variant = 'primary', disabled, loading, style }) {
   const v = BTN_VARIANTS[variant] || BTN_VARIANTS.primary;
+  const scale = useRef(new Animated.Value(1)).current;
+  const PRESS_SCALE = 0.97;
+  const USE_NATIVE_DRIVER = Platform.OS !== 'web';
+
+  const onPressIn = () => {
+    if (!disabled && !loading) {
+      Animated.spring(scale, {
+        toValue: PRESS_SCALE,
+        tension: 300,
+        friction: 20,
+        useNativeDriver: USE_NATIVE_DRIVER,
+      }).start();
+    }
+  };
+
+  const onPressOut = () => {
+    if (!disabled && !loading) {
+      Animated.spring(scale, {
+        toValue: 1,
+        tension: 300,
+        friction: 20,
+        useNativeDriver: USE_NATIVE_DRIVER,
+      }).start();
+    }
+  };
+
+  const animatedStyle = {
+    transform: [{ scale }],
+  };
+
   return (
-    <TouchableOpacity
-      style={[styles.btn, v.btn, (disabled || loading) && styles.btnDisabled, style]}
-      onPress={onPress}
-      disabled={disabled || loading}
-      activeOpacity={0.8}
-    >
-      {loading ? (
-        <ActivityIndicator color={v.spinner} />
-      ) : (
-        <Text style={[styles.btnText, v.text]}>{title.toUpperCase()}</Text>
-      )}
-    </TouchableOpacity>
+    <Animated.View style={animatedStyle}>
+      <TouchableOpacity
+        style={[styles.btn, v.btn, (disabled || loading) && styles.btnDisabled, style]}
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={disabled || loading}
+        activeOpacity={1} // We handle opacity via scale
+      >
+        {loading ? (
+          <ActivityIndicator color={v.spinner} />
+        ) : (
+          <Text style={[styles.btnText, v.text]}>{title.toUpperCase()}</Text>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
-/** Campo con etiqueta y error, estilo Lato sobre blanco. */
+/** Campo con etiqueta y error, estilo Lato sobre blanco. Con focus ring animado. */
 export function Input({ label, error, style, ...props }) {
+  const [focused, setFocused] = useState(false);
+  const borderAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(borderAnim, {
+      toValue: focused ? 1 : 0,
+      duration: 150,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [focused, borderAnim]);
+
+  const borderColor = error
+    ? colors.coral
+    : focused
+      ? colors.primaryLight
+      : colors.border;
+
+  const borderWidth = error || focused ? 1.5 : 1;
+
+  const shadowStyle = focused && !error
+      ? {
+      boxShadow: `0 0 8px ${colors.primaryLight}`,
+      elevation: 3,
+    }
+      : error
+    ? {
+        boxShadow: `0 0 8px ${colors.coral}`,
+        elevation: 2,
+      }
+    : {};
+
   return (
     <View style={[styles.inputWrap, style]}>
       {label ? <Text style={styles.inputLabel}>{label}</Text> : null}
-      <TextInput
-        style={styles.input}
-        placeholderTextColor={colors.textMuted}
-        autoCorrect={false}
-        {...props}
-      />
+      <Animated.View
+        style={[
+          styles.input,
+          { borderColor, borderWidth, ...shadowStyle },
+        ]}
+      >
+        <TextInput
+          style={{ flex: 1, fontSize: 15, color: colors.text, fontFamily: fonts.body }}
+          placeholderTextColor={colors.textMuted}
+          autoCorrect={false}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          {...props}
+        />
+      </Animated.View>
       {error ? <Text style={styles.inputError}>{error}</Text> : null}
     </View>
   );
 }
 
-/** Selector de chips (una opción activa a la vez). */
+/** Selector de chips (una opción activa a la vez). Con animación de press táctil. */
 export function ChipSelect({
   label,
   options,
@@ -159,22 +262,68 @@ export function ChipSelect({
   labelKey = 'nombre',
   plain = false,
 }) {
+  const chipScales = useRef(
+    (options || []).map(() => new Animated.Value(1))
+  ).current;
+
   return (
     <View style={styles.inputWrap}>
       {label ? <Text style={styles.inputLabel}>{label}</Text> : null}
       <View style={styles.chipRow}>
-        {(options || []).map((opt) => {
-          const val = plain ? opt : opt[keyBy];
-          const text = plain ? opt : opt[labelKey];
+        {(options || []).map((opt, index) => {
+          let val, text, key;
+          if (plain) {
+            if (typeof opt === 'object' && opt !== null) {
+              val = opt.id ?? opt.value ?? opt;
+              text = opt.nombre ?? opt.name ?? opt.label ?? opt.title ?? String(opt);
+            } else {
+              val = opt;
+              text = String(opt);
+            }
+            key = `plain-${index}`;
+          } else {
+            val = opt[keyBy];
+            text = opt[labelKey];
+            key = String(val);
+          }
           const active = String(val) === String(value);
+          const scale = chipScales[index] || new Animated.Value(1);
+
+          const onPressIn = () => {
+            Animated.spring(scale, {
+              toValue: 0.94,
+              tension: 300,
+              friction: 20,
+              useNativeDriver: USE_NATIVE_DRIVER,
+            }).start();
+          };
+
+          const onPressOut = () => {
+            Animated.spring(scale, {
+              toValue: 1,
+              tension: 300,
+              friction: 20,
+              useNativeDriver: USE_NATIVE_DRIVER,
+            }).start();
+          };
+
           return (
-            <TouchableOpacity
-              key={String(val)}
-              style={[styles.chip, active && styles.chipActive]}
-              onPress={() => onChange(val)}
+            <Animated.View
+              key={key}
+              style={{
+                transform: [{ scale }],
+              }}
             >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{text}</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => onChange(val)}
+                onPressIn={onPressIn}
+                onPressOut={onPressOut}
+                activeOpacity={1}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{text}</Text>
+              </TouchableOpacity>
+            </Animated.View>
           );
         })}
       </View>
@@ -187,13 +336,25 @@ export function SectionTitle({ children, style }) {
   return <Text style={[styles.sectionTitle, style]}>{children}</Text>;
 }
 
-/** Fila etiqueta–valor para pantallas de detalle. */
-export function Row({ label, value }) {
+/** Fila etiqueta–valor para pantallas de detalle. Con divider sutil opcional. */
+export function Row({ label, value, showDivider = true }) {
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={styles.rowValue}>{value === null || value === undefined || value === '' ? '—' : String(value)}</Text>
     </View>
+  );
+}
+
+export function RowWithDivider({ label, value, showDivider = true }) {
+  return (
+    <>
+      <View style={styles.row}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={styles.rowValue}>{value === null || value === undefined || value === '' ? '—' : String(value)}</Text>
+      </View>
+      {showDivider && <View style={styles.rowDivider} />}
+    </>
   );
 }
 
@@ -270,7 +431,7 @@ export function formatFecha(iso) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
-  content: { padding: spacing.lg, paddingBottom: spacing.xl },
+  content: { paddingHorizontal: spacing.lg + 4, paddingTop: spacing.lg, paddingBottom: spacing.xl + 8 },
   brandWrap: { alignItems: 'center' },
   brandName: { fontFamily: fonts.title, letterSpacing: 4 },
   brandTag: {
@@ -283,13 +444,8 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.white,
     borderRadius: radius.lg,
-    padding: spacing.md,
+    padding: spacing.lg,
     marginBottom: spacing.md,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
   badge: {
     alignSelf: 'flex-start',
@@ -306,7 +462,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
   },
-  btnDisabled: { opacity: 0.55 },
+  btnDisabled: { opacity: 0.45 },
   btnText: { fontFamily: fonts.bodyBold, fontSize: 15, letterSpacing: 0.5 },
   inputWrap: { marginBottom: spacing.md },
   inputLabel: {
@@ -321,37 +477,47 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
     fontSize: 15,
     color: colors.text,
     fontFamily: fonts.body,
   },
   inputError: { color: colors.coral, fontSize: 12, marginTop: 4, fontFamily: fonts.body },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, rowGap: spacing.sm },
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.primarySoft,
     backgroundColor: colors.white,
+    minWidth: 72,
   },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+      boxShadow: '0 2px 8px rgba(11, 60, 93, 0.2)',
+      elevation: 3,
+    },
   chipText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.primary },
   chipTextActive: { color: colors.white },
   sectionTitle: {
     fontFamily: fonts.title,
     fontSize: 22,
     color: colors.primary,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    paddingVertical: 10,
+  },
+  rowDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginHorizontal: -spacing.lg,
+    opacity: 0.5,
   },
   rowLabel: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, flex: 1 },
   rowValue: {
@@ -361,15 +527,15 @@ const styles = StyleSheet.create({
     flex: 1.4,
     textAlign: 'right',
   },
-  empty: { alignItems: 'center', padding: spacing.xl },
-  emptyIcon: { fontSize: 34, color: colors.primarySoft, marginBottom: spacing.sm },
-  emptyText: { fontFamily: fonts.body, color: colors.textMuted, textAlign: 'center' },
+  empty: { alignItems: 'center', padding: spacing.xl * 1.5 },
+  emptyIcon: { fontSize: 40, color: colors.primarySoft, marginBottom: spacing.md, opacity: 0.7, boxShadow: 'none' },
+  emptyText: { fontFamily: fonts.body, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   loadingText: { fontFamily: fonts.body, color: colors.textMuted, marginTop: spacing.sm },
   errorBanner: {
-    backgroundColor: `${colors.coral}1A`,
+    backgroundColor: `${colors.coral}14`,
     borderWidth: 1,
-    borderColor: `${colors.coral}55`,
+    borderColor: `${colors.coral}33`,
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.md,

@@ -152,6 +152,7 @@ class RegistroEstadiaViewSet(viewsets.ModelViewSet):
             salida=None,
             salida_prevista=salida_prevista,
             conflicto=conflicto,
+            registrado_por=self.request.user,
         )
         # CU3 — Check-in: la habitación queda OCUPADA.
         Habitacion.objects.filter(pk=habitacion.pk).update(estado='OCUPADA')

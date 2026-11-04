@@ -49,12 +49,13 @@ class RegistroEstadiaSerializer(serializers.ModelSerializer):
     )
     salida_prevista = serializers.DateField(read_only=True)
     conflicto = serializers.BooleanField(read_only=True)
+    registrado_por = UsuarioMiniSerializer(read_only=True)
 
     class Meta:
         model = RegistroEstadia
         fields = [
             'id', 'habitacion', 'huesped', 'llegada', 'salida',
-            'salida_prevista', 'conflicto',
+            'salida_prevista', 'conflicto', 'registrado_por',
         ]
 
 

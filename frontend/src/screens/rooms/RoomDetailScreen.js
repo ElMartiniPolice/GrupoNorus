@@ -9,7 +9,7 @@
  * de cambios (sin datos de huéspedes ni estadías).
  */
 import React, { useCallback, useState } from 'react';
-import { StyleSheet, Text, View, Image } from 'react-native';
+import { Alert, StyleSheet, Text, View, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../context/AuthContext';
@@ -73,7 +73,7 @@ export default function RoomDetailScreen({ route }) {
   const [huesped, setHuesped] = useState('');
   const [llegada, setLlegada] = useState(fechaISO(new Date()));
   const [salida, setSalida] = useState(fechaISO(new Date(Date.now() + 86400000)));
-  const onError = makeErrorHandler(logout);
+  const onError = useCallback(makeErrorHandler(logout), [logout]);
 
   const load = useCallback(async () => {
     try {
@@ -150,6 +150,29 @@ export default function RoomDetailScreen({ route }) {
     setFoto(r.assets[0]);
   };
 
+    const pickFotoFromCamera = async () => {
+      const r = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (r.canceled || !r.assets?.length) return;
+      setFoto(r.assets[0]);
+    };
+
+    const showImagePicker = () => {
+      Alert.alert(
+        'Seleccionar origen',
+        '¿De dónde quieres tomar la foto?',
+        [
+          { text: 'Cámara', onPress: pickFotoFromCamera },
+          { text: 'Galería', onPress: pickFoto },
+          { text: 'Cancelar', style: 'cancel' },
+        ],
+        { cancelable: true },
+      );
+    };
+
   const cambiarEstado = (nuevo) => {
     if (room.estado === nuevo) return;
     accion(
@@ -179,7 +202,7 @@ export default function RoomDetailScreen({ route }) {
         </View>
       ) : null}
 
-      <Card>
+      <Card elevationLevel="level2">
         <View style={styles.head}>
           <Text style={styles.titulo}>Habitación {habLabel(room)}</Text>
           <Badge
@@ -192,7 +215,7 @@ export default function RoomDetailScreen({ route }) {
       </Card>
 
       {activa && puedeGestionar ? (
-        <Card>
+        <Card elevationLevel="level2">
           <View style={styles.head}>
             <Text style={styles.subtitulo}>Estadía activa</Text>
             {activa.conflicto ? <Badge label="Conflicto" color={colors.coral} /> : null}
@@ -211,7 +234,7 @@ export default function RoomDetailScreen({ route }) {
       ) : null}
 
       {puedeGestionar && !activa ? (
-        <Card>
+        <Card elevationLevel="level2">
           <View style={styles.head}>
             <Text style={styles.subtitulo}>Check-in (CU3)</Text>
           </View>
@@ -255,14 +278,14 @@ export default function RoomDetailScreen({ route }) {
       ) : null}
 
       {puedeCambiarEstado ? (
-        <Card>
+        <Card elevationLevel="level2">
           <View style={styles.head}>
             <Text style={styles.subtitulo}>Cambiar estado</Text>
           </View>
           <Button
             title={foto ? 'Cambiar fotografía adjunta' : 'Adjuntar fotografía (opcional)'}
             variant="ghost"
-            onPress={pickFoto}
+                      onPress={showImagePicker}
             disabled={busy}
           />
           {foto ? (

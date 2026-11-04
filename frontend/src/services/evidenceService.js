@@ -44,4 +44,34 @@ export const evidenceService = {
     });
     return data;
   },
+
+  /**
+   * Sube una foto para una tarea.
+   * @param {number} tareaId
+   * @param {object} photo {uri, type='image/jpeg', name}
+   */
+  async subirTarea(tareaId, photo) {
+    const form = new FormData();
+    form.append('tarea', String(tareaId));
+    form.append('imagen', {
+      uri: photo.uri,
+      type: photo.type || 'image/jpeg',
+      name: photo.name || `tarea_${Date.now()}.jpg`,
+    });
+    const { data } = await api.post('/evidence/evidencias/', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+
+  /**
+   * Obtiene evidencias de una tarea.
+   * @param {number} tareaId
+   */
+  async porTarea(tareaId) {
+    const { data } = await api.get('/evidence/evidencias/', {
+      params: { tarea: tareaId },
+    });
+    return data.results ?? data;
+  },
 };

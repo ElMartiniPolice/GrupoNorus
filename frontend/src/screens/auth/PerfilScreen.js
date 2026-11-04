@@ -1,9 +1,9 @@
 /**
  * PerfilScreen — Perfil del usuario autenticado (solo lectura para no-admins).
- * Permite ver datos personales y cambiar contraseña.
+ * Permite ver datos personales, cambiar contraseña y configurar privacidad.
  */
 import React, { useCallback, useState } from 'react';
-import { Alert, StyleSheet } from 'react-native';
+import { Alert, StyleSheet, Text } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/userService';
 import { colors, fonts, spacing, radius } from '../../theme';
@@ -29,7 +29,7 @@ export default function PerfilScreen({ navigation }) {
   const [passwordNueva, setPasswordNueva] = useState('');
   const [passwordConfirmar, setPasswordConfirmar] = useState('');
   const [mostrarCambioPassword, setMostrarCambioPassword] = useState(false);
-  const onError = makeErrorHandler(logout);
+  const onError = useCallback(makeErrorHandler(logout), [logout]);
 
   const handleCambiarPassword = async () => {
     setError('');
@@ -69,6 +69,19 @@ export default function PerfilScreen({ navigation }) {
         <Row label="Estado" value={user?.is_active ? 'Activo' : 'Inactivo'} />
       </Card>
 
+      <SectionTitle style={{ marginTop: spacing.lg }}>Privacidad</SectionTitle>
+      <Card elevationLevel="level2">
+        <Text style={styles.privacyText}>
+          Tus datos personales se utilizan únicamente para la gestión interna del hotel.
+          No se comparten con terceros sin tu consentimiento explícito.
+        </Text>
+        <Button
+          title="Ver política de privacidad completa"
+          variant="secondary"
+          onPress={() => Alert.alert('Política de Privacidad', 'Los datos se almacenan de forma segura en nuestros servidores y se eliminan según la normativa vigente.')}
+        />
+      </Card>
+
       <SectionTitle style={{ marginTop: spacing.lg }}>Seguridad</SectionTitle>
 
       {!mostrarCambioPassword ? (
@@ -78,7 +91,7 @@ export default function PerfilScreen({ navigation }) {
           onPress={() => setMostrarCambioPassword(true)}
         />
       ) : (
-        <Card>
+        <Card elevationLevel="level2">
           <Input
             label="Contraseña actual"
             placeholder="••••••••"
@@ -132,4 +145,12 @@ export default function PerfilScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  privacyText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 20,
+    marginBottom: spacing.md,
+  },
+});

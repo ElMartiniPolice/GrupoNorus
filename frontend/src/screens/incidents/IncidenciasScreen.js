@@ -2,8 +2,8 @@
  * IncidenciasScreen — CU8: Listado de incidencias reportadas.
  * Severidades masculinas: CRITICO / ALTO / MEDIO / BAJO (severityColor).
  */
-import React, { useCallback, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View, Animated } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { incidentService, SEVERIDADES } from '../../services/incidentService';
@@ -21,6 +21,7 @@ import {
 } from '../../components/ui';
 import { habLabel, estadoLabel } from '../../utils/labels';
 import { slaText } from '../../utils/sla';
+import { useStaggeredAnimation, staggeredEntranceStyle } from '../../utils/animations';
 
 export function estadoInc(inc) {
   if (inc.estado) return inc.estado;
@@ -35,7 +36,7 @@ export default function IncidenciasScreen({ navigation }) {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [severidad, setSeveridad] = useState('TODAS');
-  const onError = makeErrorHandler(logout);
+  const onError = useCallback(makeErrorHandler(logout), [logout]);
 
   const load = useCallback(
     async (silent = false) => {
@@ -62,9 +63,21 @@ export default function IncidenciasScreen({ navigation }) {
     }, [load]),
   );
 
-  const visibles = (incidencias || []).filter(
-    (i) => severidad === 'TODAS' || i.severidad === severidad,
+  // Memoize filtered incidents to avoid re-filtering on every render
+    const filteredIncidencias = useMemo(
+      () => {
+        if (!incidencias) return [];
+        if (severidad === 'TODAS') return incidencias;
+        return incidencias.filter((i) => i.severidad === severidad);
+      },
+      [incidencias, severidad],
   );
+
+    // Staggered entrance animations
+    const cardAnims = useMemo(
+      () => useStaggeredAnimation(filteredIncidencias.length, 60, 300),
+      [filteredIncidencias.length]
+    );
 
   return (
     <View style={styles.wrap}>
@@ -85,27 +98,36 @@ export default function IncidenciasScreen({ navigation }) {
         </View>
         {error ? <ErrorBanner message={error} /> : null}
         {!incidencias && !error && <Loading label="Cargando incidencias…" />}
-        {incidencias && visibles.length === 0 && !error && (
+        {incidencias && filteredIncidencias.length === 0 && !error && (
           <EmptyState message="No hay incidencias para mostrar." />
         )}
-        {visibles.map((i) => (
-          <Card key={i.id} onPress={() => navigation.navigate('IncidentDetail', { id: i.id })}>
-            <View style={styles.cardHead}>
-              <Text style={styles.titulo}>{i.titulo}</Text>
-              <Badge label={i.severidad} color={severityColor[i.severidad] || colors.textMuted} />
-            </View>
-            <Text style={styles.meta}>
-              Habitación: {habLabel(i.habitacion)} · {formatFecha(i.creada_en)}
-            </Text>
-            <View style={styles.cardFoot}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                <Badge label={estadoLabel(estadoInc(i))} color={colors.primaryLight} />
-                {slaText(i.severidad) ? (
-                  <Text style={styles.sla}>{slaText(i.severidad)}</Text>
-                ) : null}
+                {filteredIncidencias.map((i, index) => (
+          <Animated.View
+            key={i.id}
+            style={staggeredEntranceStyle(cardAnims[index], 16)}
+          >
+            <Card
+              elevationLevel="level1"
+              key={i.id}
+              onPress={() => navigation.navigate('IncidentDetail', { id: i.id })}
+            >
+              <View style={styles.cardHead}>
+                <Text style={styles.titulo}>{i.titulo}</Text>
+                <Badge label={i.severidad} color={severityColor[i.severidad] || colors.textMuted} />
               </View>
-            </View>
-          </Card>
+              <Text style={styles.meta}>
+                Habitación: {habLabel(i.habitacion)} · {formatFecha(i.creada_en)}
+              </Text>
+              <View style={styles.cardFoot}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                  <Badge label={estadoLabel(estadoInc(i))} color={colors.primaryLight} />
+                  {slaText(i.severidad) ? (
+                    <Text style={styles.sla}>{slaText(i.severidad)}</Text>
+                  ) : null}
+                </View>
+              </View>
+            </Card>
+          </Animated.View>
         ))}
       </Screen>
       <TouchableOpacity

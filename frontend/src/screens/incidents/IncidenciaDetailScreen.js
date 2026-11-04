@@ -3,7 +3,7 @@
  * y evidencia fotográfica (multipart 'incidencia' + 'imagen', expo-image-picker).
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View, Modal, TouchableOpacity, Dimensions } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../context/AuthContext';
 import { incidentService } from '../../services/incidentService';
@@ -26,6 +26,8 @@ import { habLabel, userLabel, estadoLabel } from '../../utils/labels';
 import { slaText } from '../../utils/sla';
 import { estadoInc } from './IncidenciasScreen';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 function evidenciaUri(ev) {
   if (!ev) return null;
   if (typeof ev.imagen === 'string') return ev.imagen;
@@ -42,7 +44,9 @@ export default function IncidenciaDetailScreen({ route }) {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
-  const onError = makeErrorHandler(logout);
+  const [showImagePicker, setShowImagePicker] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState(null);
+  const onError = useCallback(makeErrorHandler(logout), [logout]);
 
   const load = useCallback(async () => {
     try {
@@ -90,17 +94,29 @@ export default function IncidenciaDetailScreen({ route }) {
     }
   };
 
-  const subirEvidencia = async () => {
+  const openImagePicker = () => setShowImagePicker(true);
+
+  const handleImagePicker = async (source) => {
+    setShowImagePicker(false);
     setBusy(true);
     setMsg('');
     try {
-      const r = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.7,
-      });
-      if (r.canceled || !r.assets?.length) return;
-      await evidenceService.subir(id, r.assets[0]);
+      let result;
+      if (source === 'camera') {
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          quality: 0.7,
+        });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          quality: 0.7,
+        });
+      }
+      if (result.canceled || !result.assets?.length) return;
+      await evidenceService.subir(id, result.assets[0]);
       setMsg('Evidencia subida correctamente.');
       load();
     } catch (e) {
@@ -109,6 +125,9 @@ export default function IncidenciaDetailScreen({ route }) {
       setBusy(false);
     }
   };
+
+  const openFullscreenImage = (uri) => setSelectedImageUri(uri);
+  const closeFullscreenImage = () => setSelectedImageUri(null);
 
   if (!inc && !error) return <Loading label="Cargando incidencia…" />;
 
@@ -125,7 +144,7 @@ export default function IncidenciaDetailScreen({ route }) {
       ) : null}
       {inc && (
         <>
-          <Card>
+          <Card elevationLevel="level2">
             <View style={styles.head}>
               <Text style={styles.titulo}>{inc.titulo}</Text>
               <Badge label={inc.severidad} color={severityColor[inc.severidad] || colors.textMuted} />
@@ -170,27 +189,71 @@ export default function IncidenciaDetailScreen({ route }) {
           <Button
             title="Subir foto de evidencia"
             variant="secondary"
-            onPress={subirEvidencia}
+                      onPress={openImagePicker}
             loading={busy}
             disabled={busy}
           />
-          <View style={styles.evGrid}>
-            {evidencias.map((ev) => {
-              const uri = evidenciaUri(ev);
-              return (
-                <View key={ev.id} style={styles.evItem}>
-                  {uri ? (
-                    <Image source={{ uri }} style={styles.evImg} />
-                  ) : (
-                    <View style={[styles.evImg, styles.evPlaceholder]}>
-                      <Text style={styles.evPlaceholderText}>?</Text>
+                    {showImagePicker && (
+                      <Modal visible={true} animationType="slide" transparent={true}>
+                        <View style={styles.pickerOverlay}>
+                          <View style={styles.pickerContainer}>
+                            <Text style={styles.pickerTitle}>Seleccionar origen</Text>
+                            <Button
+                              title="Cámara"
+                              onPress={() => handleImagePicker('camera')}
+                              loading={busy}
+                              disabled={busy}
+                              style={styles.pickerBtn}
+                            />
+                            <Button
+                              title="Galería"
+                              variant="secondary"
+                              onPress={() => handleImagePicker('library')}
+                              loading={busy}
+                              disabled={busy}
+                              style={styles.pickerBtn}
+                            />
+                            <Button
+                              title="Cancelar"
+                              variant="ghost"
+                              onPress={() => setShowImagePicker(false)}
+                              disabled={busy}
+                              style={styles.pickerBtn}
+                            />
+                          </View>
+                        </View>
+                      </Modal>
+                    )}
+                    <View style={styles.evGrid}>
+                      {evidencias.map((ev) => {
+                        const uri = evidenciaUri(ev);
+                        return (
+                          <View key={ev.id} style={styles.evItem}>
+                            {uri ? (
+                              <TouchableOpacity onPress={() => openFullscreenImage(uri)} activeOpacity={0.8}>
+                                <Image source={{ uri }} style={styles.evImg} />
+                              </TouchableOpacity>
+                            ) : (
+                              <View style={[styles.evImg, styles.evPlaceholder]}>
+                                <Text style={styles.evPlaceholderText}>?</Text>
+                              </View>
+                            )}
+                            <Text style={styles.evLabel}>#{ev.id}</Text>
+                          </View>
+                        );
+                      })}
                     </View>
-                  )}
-                  <Text style={styles.evLabel}>#{ev.id}</Text>
-                </View>
-              );
-            })}
-          </View>
+
+                    {selectedImageUri && (
+                      <Modal visible={true} animationType="fade" transparent={true}>
+                        <TouchableOpacity style={styles.fullscreenOverlay} onPress={closeFullscreenImage}>
+                          <Image source={{ uri: selectedImageUri }} style={styles.fullscreenImage} resizeMode="contain" />
+                          <TouchableOpacity style={styles.fullscreenClose} onPress={closeFullscreenImage}>
+                            <Text style={{ color: colors.white, fontSize: 24, fontWeight: 'bold' }}>×</Text>
+                          </TouchableOpacity>
+                        </TouchableOpacity>
+                      </Modal>
+                    )}
         </>
       )}
     </Screen>
@@ -251,4 +314,46 @@ const styles = StyleSheet.create({
   },
   evPlaceholderText: { color: colors.textMuted, fontFamily: fonts.body },
   evLabel: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, marginTop: 4 },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  pickerContainer: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  pickerTitle: {
+    fontFamily: fonts.title,
+    fontSize: 18,
+    color: colors.primary,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  pickerBtn: {
+    marginHorizontal: 0,
+  },
+  fullscreenOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_WIDTH * 1.5,
+    maxHeight: Dimensions.get('window').height * 0.9,
+  },
+  fullscreenClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 10,
+  },
 });

@@ -14,18 +14,21 @@ from django.db.models import Avg, Count, F, Q
 from django.utils import timezone
 
 
-def kpi1_tiempo_respuesta():
+def kpi1_tiempo_respuesta(usuario=None):
     """
     Promedio de minutos entre la creación de una incidencia y su primera
     atención (cambio de estado o respuesta registrada).
+    Si se proporciona `usuario`, calcula el promedio solo para incidencias
+    reportadas por ese usuario.
     Meta: < 15 min (huéspedes) / < 30 min (internos).
     """
     from apps.incidents.models import Incidencia
 
-    qs = Incidencia.objects.filter(
-        atendida_en__isnull=False,
-        creada_en__isnull=False,
-    )
+    filtros = Q(atendida_en__isnull=False, creada_en__isnull=False)
+    if usuario is not None:
+        filtros &= Q(reportado_por=usuario)
+
+    qs = Incidencia.objects.filter(filtros)
     agg = qs.annotate(
         minutos=Avg(F('atendida_en') - F('creada_en'))
     ).aggregate(promedio=Avg('minutos'))
@@ -38,15 +41,23 @@ def kpi1_tiempo_respuesta():
     }
 
 
-def kpi2_trazabilidad():
+def kpi2_trazabilidad(usuario=None):
     """
     Porcentaje de solicitudes/incidencias registradas en la plataforma
     respecto del total de reportes. Meta: 100% en 2 meses.
+    Si se proporciona `usuario`, cuenta solo sus registros (incidencias
+    reportadas + tareas asignadas).
     """
     from apps.incidents.models import Incidencia
     from apps.tasks.models import AsignacionTarea
 
-    total = Incidencia.objects.count() + AsignacionTarea.objects.count()
+    incidencias = Incidencia.objects.all()
+    tareas = AsignacionTarea.objects.all()
+    if usuario is not None:
+        incidencias = incidencias.filter(reportado_por=usuario)
+        tareas = tareas.filter(asignado_a=usuario)
+
+    total = incidencias.count() + tareas.count()
     return {
         'kpi': 'KPI 2 — Trazabilidad',
         'registros_plataforma': total,
@@ -54,15 +65,21 @@ def kpi2_trazabilidad():
     }
 
 
-def kpi3_asignacion_habitaciones():
+def kpi3_asignacion_habitaciones(usuario=None):
     """
     Porcentaje de asignaciones de habitaciones sin conflictos de duplicidad.
     Meta: 95% (mes 1) → 98% (mes 3).
+    Si se proporciona `usuario`, mide solo las asignaciones (check-in)
+    registradas por ese usuario.
     """
     from apps.rooms.models import RegistroEstadia
 
-    total = RegistroEstadia.objects.count()
-    con_conflicto = RegistroEstadia.objects.filter(conflicto=True).count()
+    qs = RegistroEstadia.objects.all()
+    if usuario is not None:
+        qs = qs.filter(registrado_por=usuario)
+
+    total = qs.count()
+    con_conflicto = qs.filter(conflicto=True).count()
     sin_conflicto = total - con_conflicto
     porcentaje = round((sin_conflicto / total) * 100, 1) if total else None
     return {
@@ -74,15 +91,18 @@ def kpi3_asignacion_habitaciones():
     }
 
 
-def kpi4_respaldo_fotografico():
+def kpi4_respaldo_fotografico(usuario=None):
     """
     Porcentaje de incidencias que requieren evidencia visual y que cuentan
     con fotografías subidas. Meta: 100% en 2 meses.
+    Si se proporciona `usuario`, mide solo las incidencias que reportó.
     """
     from apps.evidence.models import EvidenciaFotografica
     from apps.incidents.models import Incidencia
 
     requieren = Incidencia.objects.filter(requiere_evidencia=True)
+    if usuario is not None:
+        requieren = requieren.filter(reportado_por=usuario)
     con_evidencia = requieren.filter(
         id__in=EvidenciaFotografica.objects.values_list('incidencia_id', flat=True)
     ).count()
@@ -97,14 +117,27 @@ def kpi4_respaldo_fotografico():
     }
 
 
-def kpi5_adopcion():
+def kpi5_adopcion(usuario=None):
     """
     Usuarios activos por día / total de colaboradores registrados.
     Meta: 80% (mes 1) → 95% (mes 3).
+    Si se proporciona `usuario`, entrega su propia actividad (activo hoy).
     """
     from apps.users.models import Usuario
 
     hoy = timezone.now().date()
+
+    if usuario is not None:
+        activo_hoy = bool(
+            usuario.ultimo_acceso and usuario.ultimo_acceso.date() == hoy
+        )
+        return {
+            'kpi': 'KPI 5 — Adopción de la plataforma',
+            'activo_hoy': activo_hoy,
+            'porcentaje': 100 if activo_hoy else 0,
+            'meta_porcentaje': 80,
+        }
+
     activos_hoy = Usuario.objects.filter(
         ultimo_acceso__date=hoy
     ).count()
@@ -119,12 +152,44 @@ def kpi5_adopcion():
     }
 
 
-def resumen_kpis():
-    """Panel de administración (CP-ADM-01): todos los KPI en un endpoint."""
+def resumen_kpis(usuario=None):
+    """
+    Panel de administración (CP-ADM-01): todos los KPI en un endpoint.
+    Si se proporciona `usuario`, devuelve los KPI de esa persona.
+    """
     return [
-        kpi1_tiempo_respuesta(),
-        kpi2_trazabilidad(),
-        kpi3_asignacion_habitaciones(),
-        kpi4_respaldo_fotografico(),
-        kpi5_adopcion(),
+        kpi1_tiempo_respuesta(usuario),
+        kpi2_trazabilidad(usuario),
+        kpi3_asignacion_habitaciones(usuario),
+        kpi4_respaldo_fotografico(usuario),
+        kpi5_adopcion(usuario),
     ]
+
+
+def kpis_por_usuario():
+    """
+    Vista por persona (CP-ADM-01): devuelve los KPI de cada usuario activo
+    junto con sus datos de identificación y rol.
+    """
+    from apps.users.models import Usuario
+
+    usuarios = (
+        Usuario.objects.filter(is_active=True)
+        .select_related('rol', 'area')
+        .order_by('apellido', 'nombre')
+    )
+    resultado = []
+    for u in usuarios:
+        resultado.append({
+            'usuario': {
+                'id': u.id,
+                'rut': u.rut,
+                'nombre': u.nombre,
+                'apellido': u.apellido,
+                'nombre_completo': f'{u.nombre} {u.apellido}',
+                'rol': u.rol.nombre if u.rol_id else None,
+                'area': u.area.nombre if u.area_id else None,
+            },
+            'kpis': resumen_kpis(u),
+        })
+    return resultado

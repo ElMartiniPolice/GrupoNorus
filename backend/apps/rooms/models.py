@@ -66,6 +66,7 @@ class RegistroEstadia(models.Model):
       el frontend al crear el check-in (no cierra la estadía).
     - `conflicto` marca estadías duplicadas sobre la misma habitación
       (dos huéspedes activos a la vez) — alimenta el KPI3.
+    - `registrado_por` indica quién realizó el check-in (recepción/admin).
     """
     habitacion = models.ForeignKey(
         Habitacion,
@@ -77,6 +78,13 @@ class RegistroEstadia(models.Model):
     salida = models.DateField(null=True, blank=True)
     salida_prevista = models.DateField(null=True, blank=True)
     conflicto = models.BooleanField(default=False)
+    registrado_por = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='estadias_registradas',
+    )
 
     class Meta:
         db_table = 'registro_estadia'

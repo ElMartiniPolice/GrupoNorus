@@ -2,8 +2,8 @@
  * TasksScreen — CU2/CU5: Listado de tareas.
  * OPERARIO ve solo las suyas (GET /tasks/tareas/?mias=true); el resto ve todas.
  */
-import React, { useCallback, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View, Animated } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { taskService, ESTADOS_TAREA } from '../../services/taskService';
@@ -19,6 +19,7 @@ import {
   makeErrorHandler,
 } from '../../components/ui';
 import { habLabel, userLabel, estadoLabel } from '../../utils/labels';
+import { useStaggeredAnimation, staggeredEntranceStyle } from '../../utils/animations';
 
 export default function TasksScreen({ navigation }) {
   const { user, logout } = useAuth();
@@ -27,7 +28,7 @@ export default function TasksScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [estado, setEstado] = useState('TODAS');
   const esOperario = user?.rol_nombre === 'OPERARIO';
-  const onError = makeErrorHandler(logout);
+  const onError = useCallback(makeErrorHandler(logout), [logout]);
 
   const load = useCallback(
     async (silent = false) => {
@@ -54,7 +55,21 @@ export default function TasksScreen({ navigation }) {
     }, [load]),
   );
 
-  const visibles = (tareas || []).filter((t) => estado === 'TODAS' || t.estado === estado);
+  // Memoize filtered tasks to avoid re-filtering on every render
+    const filteredTareas = useMemo(
+      () => {
+        if (!tareas) return [];
+        if (estado === 'TODAS') return tareas;
+        return tareas.filter((t) => t.estado === estado);
+      },
+      [tareas, estado],
+    );
+
+    // Staggered entrance animations
+    const cardAnims = useMemo(
+      () => useStaggeredAnimation(filteredTareas.length, 60, 300),
+      [filteredTareas.length]
+    );
 
   return (
     <View style={styles.wrap}>
@@ -75,23 +90,32 @@ export default function TasksScreen({ navigation }) {
         </View>
         {error ? <ErrorBanner message={error} /> : null}
         {!tareas && !error && <Loading label="Cargando tareas…" />}
-        {tareas && visibles.length === 0 && !error && (
+        {tareas && filteredTareas.length === 0 && !error && (
           <EmptyState message="No hay tareas para mostrar." />
         )}
-        {visibles.map((t) => (
-          <Card key={t.id} onPress={() => navigation.navigate('TaskDetail', { id: t.id })}>
-            <View style={styles.cardHead}>
-              <Text style={styles.titulo}>{t.titulo}</Text>
-              <Badge label={estadoLabel(t.estado)} color={taskEstadoColor[t.estado] || colors.textMuted} />
-            </View>
-            <Text style={styles.meta}>Habitación: {habLabel(t.habitacion)}</Text>
-            <View style={styles.cardFoot}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                <Badge label={`Prioridad ${t.prioridad}`} color={prioridadColor[t.prioridad] || colors.textMuted} />
-                {!esOperario && <Text style={styles.asignado}>{userLabel(t.asignado_a)}</Text>}
+                {filteredTareas.map((t, index) => (
+          <Animated.View
+            key={t.id}
+            style={staggeredEntranceStyle(cardAnims[index], 16)}
+          >
+            <Card
+              elevationLevel="level1"
+              key={t.id}
+              onPress={() => navigation.navigate('TaskDetail', { id: t.id })}
+            >
+              <View style={styles.cardHead}>
+                <Text style={styles.titulo}>{t.titulo}</Text>
+                <Badge label={estadoLabel(t.estado)} color={taskEstadoColor[t.estado] || colors.textMuted} />
               </View>
-            </View>
-          </Card>
+              <Text style={styles.meta}>Habitación: {habLabel(t.habitacion)}</Text>
+              <View style={styles.cardFoot}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                  <Badge label={`Prioridad ${t.prioridad}`} color={prioridadColor[t.prioridad] || colors.textMuted} />
+                  {!esOperario && <Text style={styles.asignado}>{userLabel(t.asignado_a)}</Text>}
+                </View>
+              </View>
+            </Card>
+          </Animated.View>
         ))}
       </Screen>
       {!esOperario && (

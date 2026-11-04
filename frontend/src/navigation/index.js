@@ -12,10 +12,12 @@
  * cierra la sesión actual (invalida el refresh token en el servidor y
  * limpia la sesión local → vuelve a la pantalla de login).
  */
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View, Platform, Animated } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
+import { useFonts as useExpoFonts } from 'expo-font';
 import { colors, fonts } from '../theme';
 import { NotificationBell } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
@@ -38,14 +40,26 @@ import PerfilScreen from '../screens/auth/PerfilScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// Icon names from @expo/vector-icons (Ionicons subset)
+const ICON_NAMES = {
+  Panel: 'home',
+  Tareas: 'clipboard',
+  Incidencias: 'alert',
+  Habitaciones: 'bed',
+  Alertas: 'notifications',
+  Usuarios: 'people',
+  Perfil: 'person',
+};
+
+// Professional icon mapping using vector icons (fallback to emoji if font fails)
 const TAB_ICONS = {
-  Panel: '✦',
-  Tareas: '✓',
-  Incidencias: '⚠',
-  Habitaciones: '⌂',
-  Alertas: '🔔',
-  Usuarios: '👤',
-  Perfil: '👤',
+  Panel: 'home',
+  Tareas: 'clipboard',
+  Incidencias: 'alert',
+  Habitaciones: 'bed',
+  Alertas: 'notifications',
+  Usuarios: 'people',
+  Perfil: 'person',
 };
 
 const TAB_SCREENS = {
@@ -65,14 +79,27 @@ function tabsForRole(rol) {
   if (rol === 'RECEPCION') {
     return ['Tareas', 'Habitaciones', 'Incidencias', 'Alertas', 'Perfil'];
   }
-  // CP-DP-02 — OPERARIO: solo sus habitaciones y su registro fotográfico.
-  return ['Habitaciones', 'Incidencias', 'Perfil'];
+  // CP-DP-02 — OPERARIO: acceso a tareas, incidencias, alertas y habitaciones
+  return ['Tareas', 'Incidencias', 'Alertas', 'Habitaciones', 'Perfil'];
 }
 
 function TabIcon({ icon, color, badge }) {
+  // Map our icon names to Ionicons names
+  const iconMap = {
+    home: 'home',
+    clipboard: 'clipboard',
+    alert: 'alert',
+    bed: 'bed',
+    notifications: 'notifications',
+    people: 'people',
+    person: 'person',
+  };
+
+  const ioniconName = iconMap[icon] || 'home';
+
   return (
     <View style={styles.iconWrap}>
-      <Text style={[styles.icon, { color }]}>{icon}</Text>
+      <Ionicons name={ioniconName} size={24} color={color} />
       {badge ? (
         <View style={styles.iconBadge}>
           <Text style={styles.iconBadgeText}>{badge}</Text>
@@ -107,7 +134,7 @@ function MainTabs() {
 
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route, focused }) => ({
         headerTitleAlign: 'center',
         headerStyle: { backgroundColor: colors.primary },
         headerTintColor: colors.white,
@@ -125,7 +152,15 @@ function MainTabs() {
           paddingTop: 4,
         },
         tabBarLabelStyle: { fontFamily: fonts.body, fontSize: 11 },
-      }}
+        tabBarIcon: ({ color }) => (
+          <TabIcon
+            icon={TAB_ICONS[route.name]}
+            color={color}
+            badge={route.name === 'Alertas' ? badge : null}
+            focused={focused}
+          />
+        ),
+      })}
     >
       {tabsForRole(rol).map((name) => (
         <Tab.Screen
@@ -138,13 +173,6 @@ function MainTabs() {
                 ? 'Mis Habitaciones'
                 : name,
             headerRight: name === 'Perfil' ? undefined : () => <HeaderRight />,
-            tabBarIcon: ({ color }) => (
-              <TabIcon
-                icon={TAB_ICONS[name]}
-                color={color}
-                badge={name === 'Alertas' ? badge : null}
-              />
-            ),
           }}
         />
       ))}
@@ -153,6 +181,18 @@ function MainTabs() {
 }
 
 export default function AppNavigator() {
+  // Load Ionicons font - built into Expo, but needs useFonts to preload
+  // Only on native, on web fonts are loaded via CSS
+  if (Platform.OS !== 'web') {
+    useExpoFonts({
+      Ionicons,
+    }, (error) => {
+      if (error) {
+        console.warn('Error loading Ionicons font:', error);
+      }
+    });
+  }
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -165,6 +205,25 @@ export default function AppNavigator() {
           letterSpacing: 2,
         },
         contentStyle: { backgroundColor: colors.surface },
+        // Back navigation fixes
+        gestureEnabled: true,
+        gestureDirection: 'horizontal',
+        headerBackVisible: true,
+        headerBackTitleVisible: false,
+        headerBackTitle: 'Atrás',
+        cardStyleInterpolator: ({ current: { progress } }) => {
+          const opacity = progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 1],
+          });
+          const translateX = progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [50, 0],
+          });
+          return {
+            cardStyle: { opacity, transform: [{ translateX }] },
+          };
+        },
       }}
     >
       <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
@@ -203,6 +262,17 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+  },
+  loadingText: {
+    fontFamily: fonts.body,
+    fontSize: 16,
+    color: colors.textMuted,
+  },
   iconWrap: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -211,6 +281,9 @@ const styles = StyleSheet.create({
   },
   icon: {
     fontSize: 18,
+  },
+  iconFallback: {
+    fontSize: 24,
   },
   iconBadge: {
     position: 'absolute',

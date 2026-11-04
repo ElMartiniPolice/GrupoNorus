@@ -3,8 +3,8 @@
  * Lista usuarios con filtro por rol; el FAB crea uno nuevo y cada tarjeta
  * abre el formulario de edición.
  */
-import React, { useCallback, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useState, useMemo } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View, Animated } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/userService';
@@ -21,6 +21,7 @@ import {
 } from '../../components/ui';
 import { userLabel } from '../../utils/labels';
 import { formatearRut } from '../../utils/rut';
+import { useStaggeredAnimation, staggeredEntranceStyle } from '../../utils/animations';
 
 export default function UsuariosScreen({ navigation }) {
   const { logout } = useAuth();
@@ -29,7 +30,7 @@ export default function UsuariosScreen({ navigation }) {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [rol, setRol] = useState('TODOS');
-  const onError = makeErrorHandler(logout);
+  const onError = useCallback(makeErrorHandler(logout), [logout]);
 
   const load = useCallback(
     async (silent = false) => {
@@ -63,6 +64,12 @@ export default function UsuariosScreen({ navigation }) {
   const visibles = (usuarios || []).filter((u) => rol === 'TODOS' || u.rol_nombre === rol);
   const rutTxt = (u) => (u.rut ? formatearRut(u.rut) || u.rut : '—');
 
+  // Staggered entrance animations
+  const cardAnims = useMemo(
+    () => useStaggeredAnimation(visibles.length, 60, 300),
+    [visibles.length]
+  );
+
   return (
     <View style={styles.wrap}>
       <Screen refreshing={refreshing} onRefresh={() => load(true)}>
@@ -88,23 +95,32 @@ export default function UsuariosScreen({ navigation }) {
           <EmptyState message="No hay usuarios para mostrar." />
         ) : null}
 
-        {visibles.map((u) => (
-          <Card key={u.id} onPress={() => navigation.navigate('UsuarioForm', { id: u.id })}>
-            <View style={styles.cardHead}>
-              <Text style={styles.titulo}>{userLabel(u)}</Text>
-              <Badge label={u.rol_nombre ?? '—'} color={colors.primaryLight} />
-            </View>
-            <Text style={styles.meta}>RUT: {rutTxt(u)}</Text>
-            <View style={styles.cardFoot}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                <Badge label={u.area_nombre ?? '—'} color={colors.primarySoft} />
-                <Badge
-                  label={u.is_active ? 'Activo' : 'Inactivo'}
-                  color={u.is_active ? colors.primaryLight : colors.textMuted}
-                />
+        {visibles.map((u, index) => (
+          <Animated.View
+            key={u.id}
+            style={staggeredEntranceStyle(cardAnims[index], 16)}
+          >
+            <Card
+              elevationLevel="level1"
+              key={u.id}
+              onPress={() => navigation.navigate('UsuarioForm', { id: u.id })}
+            >
+              <View style={styles.cardHead}>
+                <Text style={styles.titulo}>{userLabel(u)}</Text>
+                <Badge label={u.rol_nombre ?? '—'} color={colors.primaryLight} />
               </View>
-            </View>
-          </Card>
+              <Text style={styles.meta}>RUT: {rutTxt(u)}</Text>
+              <View style={styles.cardFoot}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                  <Badge label={u.area_nombre ?? '—'} color={colors.primarySoft} />
+                  <Badge
+                    label={u.is_active ? 'Activo' : 'Inactivo'}
+                    color={u.is_active ? colors.primaryLight : colors.textMuted}
+                  />
+                </View>
+              </View>
+            </Card>
+          </Animated.View>
         ))}
       </Screen>
 

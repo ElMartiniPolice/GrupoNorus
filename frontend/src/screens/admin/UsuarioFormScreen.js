@@ -3,11 +3,11 @@
  * RUT validado con módulo 11; la contraseña es obligatoria al crear y
  * opcional al editar (sin cambio = se mantiene la actual).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/userService';
-import { cleanRut, formatearRut, validarRut } from '../../utils/rut';
+import { cleanRut, formatearRut, normalizarRut, validarRut } from '../../utils/rut';
 import { colors, fonts, spacing } from '../../theme';
 import {
   Button,
@@ -39,7 +39,7 @@ export default function UsuarioFormScreen({ route, navigation }) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const onError = makeErrorHandler(logout);
+  const onError = useCallback(makeErrorHandler(logout), [logout]);
 
   useEffect(() => {
     (async () => {
@@ -84,7 +84,7 @@ export default function UsuarioFormScreen({ route, navigation }) {
     }
 
     const payload = {
-      rut: cleanRut(rut),
+      rut: normalizarRut(rut),
       nombre: nombre.trim(),
       apellido: apellido.trim(),
       telefono: telefono.trim(),
@@ -138,7 +138,7 @@ export default function UsuarioFormScreen({ route, navigation }) {
       <SectionTitle>{esEditar ? 'Editar usuario' : 'Nuevo usuario'}</SectionTitle>
       {error ? <ErrorBanner message={error} /> : null}
 
-      <Card>
+      <Card elevationLevel="level2">
         <Input
           label="RUT"
           placeholder="12.345.678-9"

@@ -2,8 +2,8 @@
  * DashboardScreen — Panel de KPIs (solo ADMINISTRADOR).
  * GET /core/kpis/ → { kpis: [...] } con campos exactos de apps/core/kpis.py.
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { kpiService } from '../../services/kpiService';
 import { colors, fonts, spacing, radius } from '../../theme';
@@ -80,14 +80,31 @@ export default function DashboardScreen() {
   const [kpis, setKpis] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const onError = makeErrorHandler(logout);
+  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
+  const [usuarios, setUsuarios] = useState([]);
+  const [cargandoUsuarios, setCargandoUsuarios] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const onError = useCallback(makeErrorHandler(logout), [logout]);
+
+  const cargarUsuarios = useCallback(async () => {
+    setCargandoUsuarios(true);
+    try {
+      const data = await kpiService.porUsuario();
+      setUsuarios(data);
+    } catch (e) {
+      const msg = onError(e);
+      if (msg) setError(msg);
+    } finally {
+      setCargandoUsuarios(false);
+    }
+  }, [onError]);
 
   const load = useCallback(
-    async (silent = false) => {
+    async (silent = false, usuarioId = null) => {
       if (!silent) setKpis(null);
       setRefreshing(true);
       try {
-        const data = await kpiService.resumen();
+        const data = await kpiService.resumen(usuarioId);
         setKpis(Array.isArray(data) ? data : []);
         setError('');
       } catch (e) {
@@ -101,23 +118,97 @@ export default function DashboardScreen() {
   );
 
   useEffect(() => {
-    load();
-  }, [load]);
+    cargarUsuarios();
+  }, [cargarUsuarios]);
 
-  if (!kpis && !error) return <Loading label="Cargando panel…" />;
+  // Si hay un usuario seleccionado, cargar sus KPIs; si no, cargar todos
+  useEffect(() => {
+    if (usuarioSeleccionado) {
+      load(false, usuarioSeleccionado.usuario.id);
+    } else {
+      load(false);
+    }
+  }, [usuarioSeleccionado]);
 
-  return (
-    <Screen refreshing={refreshing} onRefresh={() => load(true)}>
-      <Text style={styles.hello}>Hola, {user?.nombre || 'NORUS'}</Text>
-      <Badge label={user?.rol_nombre || ''} color={colors.primaryLight} />
+    // Memoize KPI cards to avoid re-renders - always call useMemo
+    const kpiCards = useMemo(
+      () => kpis?.map((k, i) => <KpiCard key={k.kpi || i} kpi={k} />),
+      [kpis],
+    );
+
+    if (!kpis && !error && !cargandoUsuarios) return <Loading label="Cargando panel…" />;
+
+    return (
+    <Screen refreshing={refreshing} onRefresh={() => load(false)}>
+      <View style={styles.header}>
+        <Text style={styles.hello}>Hola, {user?.nombre || 'NORUS'}</Text>
+        <Badge label={user?.rol_nombre || ''} color={colors.primaryLight} />
+      </View>
+
+      {/* Selector de persona */}
+      {user?.rol_nombre === 'ADMINISTRADOR' ? (
+        <View style={styles.personSelector}>
+          <Text style={styles.personLabel}>Ver KPIs por:</Text>
+          {cargandoUsuarios ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : usuarios.length === 0 ? (
+            <Text style={styles.noUsers}>No hay usuarios registrados</Text>
+          ) : (
+            <View style={styles.userDropdown}>
+              <TouchableOpacity
+                style={styles.dropdownTrigger}
+                onPress={() => setDropdownOpen(!dropdownOpen)}
+              >
+                <View style={styles.dropdownTriggerContent}>
+                  <Text style={styles.dropdownTriggerText}>
+                    {usuarioSeleccionado
+                      ? usuarioSeleccionado.usuario.nombre_completo
+                      : 'Todos los usuarios'}
+                  </Text>
+                  <Text style={styles.dropdownArrow}>▼</Text>
+                </View>
+              </TouchableOpacity>
+              {dropdownOpen && (
+                <View style={styles.dropdownList}>
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.dropdownScrollContent}
+                  >
+                    <TouchableOpacity
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setUsuarioSeleccionado(null);
+                        setDropdownOpen(false);
+                      }}
+                    >
+                      <Text style={styles.dropdownItemText}>Todos los usuarios</Text>
+                    </TouchableOpacity>
+                    {usuarios.map((u) => (
+                      <TouchableOpacity
+                        key={u.usuario.id}
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setUsuarioSeleccionado(u);
+                          setDropdownOpen(false);
+                        }}
+                      >
+                        <Text style={styles.dropdownItemText}>
+                          {u.usuario.nombre_completo}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      ) : null}
+
       <SectionTitle>Panel de KPIs</SectionTitle>
       {error ? <ErrorBanner message={error} /> : null}
-      {kpis && kpis.length === 0 && !error && (
-        <Text style={styles.empty}>Sin mediciones todavía.</Text>
-      )}
-      {kpis?.map((k, i) => (
-        <KpiCard key={k.kpi || i} kpi={k} />
-      ))}
+      {kpis && kpis.length === 0 && !error && <Text style={styles.empty}>Sin mediciones todavía.</Text>}
+      {kpiCards}
     </Screen>
   );
 }
@@ -144,4 +235,85 @@ const styles = StyleSheet.create({
   },
   barFill: { height: 6, borderRadius: radius.pill },
   empty: { fontFamily: fonts.body, color: colors.textMuted, textAlign: 'center' },
+  personSelector: {
+    padding: spacing.md,
+    backgroundColor: colors.white,
+    marginBottom: spacing.md,
+    borderRadius: radius.md,
+  },
+  personLabel: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  noUsers: {
+    fontFamily: fonts.body,
+    color: colors.textMuted,
+    textAlign: 'center',
+    padding: spacing.md,
+  },
+  userDropdown: {
+    marginTop: spacing.sm,
+  },
+  dropdownTrigger: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.primarySoft,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    elevation: 2,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  dropdownTriggerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  dropdownTriggerText: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    color: colors.text,
+    flex: 1,
+  },
+  dropdownArrow: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.primaryLight,
+  },
+  dropdownList: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.primarySoft,
+    borderRadius: radius.md,
+    marginTop: spacing.sm,
+    elevation: 4,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    maxHeight: 240,
+    overflow: 'hidden',
+  },
+  dropdownScrollContent: {
+    paddingBottom: spacing.sm,
+  },
+  dropdownItem: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  dropdownItemText: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.text,
+  },
 });
