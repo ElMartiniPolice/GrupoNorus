@@ -15,16 +15,20 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.permissions import IsAdminOrRecepcion, is_operario
+from apps.notifications.services import notificar
+from apps.users.models import Usuario
 from .models import (
     CambioEstadoHabitacion,
     ESTADOS_HABITACION,
     Habitacion,
+    ItemInventario,
     RegistroEstadia,
     TipoHabitacion,
 )
 from .serializers import (
     CambioEstadoHabitacionSerializer,
     HabitacionSerializer,
+    ItemInventarioSerializer,
     RegistroEstadiaSerializer,
     TipoHabitacionSerializer,
 )
@@ -107,6 +111,13 @@ class HabitacionViewSet(viewsets.ModelViewSet):
             ).data,
         )
 
+    @action(detail=True, methods=['get'])
+    def inventario(self, request, pk=None):
+        """Lista los ítems de inventario de la habitación."""
+        habitacion = self.get_object()
+        items = habitacion.inventario.select_related('solicitado_por').all()
+        return Response(ItemInventarioSerializer(items, many=True).data)
+
 
 class RegistroEstadiaViewSet(viewsets.ModelViewSet):
     """
@@ -174,3 +185,73 @@ class RegistroEstadiaViewSet(viewsets.ModelViewSet):
         return Response(
             RegistroEstadiaSerializer(estadia, context={'request': request}).data
         )
+
+
+class ItemInventarioViewSet(viewsets.ModelViewSet):
+    """
+    Ítems de inventario de habitaciones.
+    - OPERARIO accede a los ítems de sus habitaciones asignadas (CP-DP-02).
+    - Creación y eliminación de artículos reservados a ADMINISTRADOR y RECEPCION.
+    - Cualquier usuario autenticado que tenga acceso a la habitación puede marcar
+      solicitud de reposición o reponer el ítem.
+    """
+    queryset = ItemInventario.objects.select_related('habitacion', 'solicitado_por').all()
+    serializer_class = ItemInventarioSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['habitacion', 'categoria', 'estado']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if is_operario(self.request.user):
+            qs = qs.filter(habitacion__in=habitaciones_del_operario(self.request.user))
+        return qs
+
+    def get_permissions(self):
+        if self.action in ('create', 'destroy'):
+            return [IsAdminOrRecepcion()]
+        return [IsAuthenticated()]
+
+    @action(detail=True, methods=['post'])
+    def solicitar(self, request, pk=None):
+        """Marca un ítem como SOLICITADO / FALTANTE y notifica a coordinación."""
+        item = self.get_object()
+        notas = request.data.get('notas', '').strip()
+        item.estado = 'SOLICITADO'
+        item.notas = notas
+        item.solicitado_en = timezone.now()
+        item.solicitado_por = request.user
+        item.save()
+
+        # Notificar a Recepción y Administración
+        mensaje = (
+            f'Se ha solicitado reposición de "{item.nombre}" (x{item.cantidad}) '
+            f'en la habitación {item.habitacion.numero}.'
+        )
+        if notas:
+            mensaje += f' Observación: {notas}'
+        if request.user:
+            nombre_solicitante = getattr(request.user, 'nombre', '')
+            apellido_solicitante = getattr(request.user, 'apellido', '')
+            if nombre_solicitante or apellido_solicitante:
+                mensaje += f' (Solicitado por {nombre_solicitante} {apellido_solicitante})'
+
+        coordinadores = Usuario.objects.filter(
+            is_active=True,
+            rol__nombre__in=['ADMINISTRADOR', 'RECEPCION'],
+        )
+        for coordinador in coordinadores:
+            notificar(coordinador.id, f'Inventario Hab. {item.habitacion.numero}', mensaje)
+
+        return Response(self.get_serializer(item).data)
+
+    @action(detail=True, methods=['post'])
+    def reponer(self, request, pk=None):
+        """Marca el ítem como COMPLETO (repuesto)."""
+        item = self.get_object()
+        item.estado = 'COMPLETO'
+        item.notas = ''
+        item.solicitado_en = None
+        item.solicitado_por = None
+        item.save()
+        return Response(self.get_serializer(item).data)
+

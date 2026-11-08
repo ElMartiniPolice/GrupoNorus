@@ -138,3 +138,64 @@ class CambioEstadoHabitacion(models.Model):
             f'Hab. {self.habitacion_id}: '
             f'{self.estado_anterior} → {self.estado_nuevo}'
         )
+
+
+CATEGORIAS_INVENTARIO = [
+    ('BLANQUERIA', 'Blanquería'),
+    ('ELECTRODOMESTICOS', 'Electrodomésticos'),
+    ('MENAJE', 'Menaje y Cocina'),
+    ('MOBILIARIO', 'Mobiliario'),
+    ('BANO', 'Artículos de Baño'),
+    ('OTROS', 'Otros'),
+]
+
+ESTADOS_INVENTARIO = [
+    ('COMPLETO', 'Completo'),
+    ('FALTANTE', 'Faltante'),
+    ('DANADO', 'Dañado'),
+    ('SOLICITADO', 'Solicitado'),
+]
+
+
+class ItemInventario(models.Model):
+    """
+    Inventario de artículos por habitación.
+    Permite verificar la dotación de cada habitación y solicitar reposición si algo falta o se daña.
+    """
+    habitacion = models.ForeignKey(
+        Habitacion,
+        on_delete=models.CASCADE,
+        related_name='inventario',
+    )
+    nombre = models.CharField(max_length=100)
+    categoria = models.CharField(
+        max_length=30,
+        choices=CATEGORIAS_INVENTARIO,
+        default='OTROS',
+    )
+    cantidad = models.PositiveIntegerField(default=1)
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADOS_INVENTARIO,
+        default='COMPLETO',
+    )
+    notas = models.CharField(max_length=255, blank=True, default='')
+    solicitado_en = models.DateTimeField(null=True, blank=True)
+    solicitado_por = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='items_inventario_solicitados',
+    )
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'item_inventario'
+        ordering = ['categoria', 'nombre']
+        verbose_name = 'ítem de inventario'
+        verbose_name_plural = 'ítems de inventario'
+
+    def __str__(self):
+        return f'{self.nombre} (x{self.cantidad}) · Hab. {self.habitacion.numero}'
+

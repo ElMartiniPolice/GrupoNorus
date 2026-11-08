@@ -29,7 +29,7 @@ class AsignacionTareaViewSet(viewsets.ModelViewSet):
     - PATCH {estado} (CU6) queda registrado en el historial.
     """
     queryset = AsignacionTarea.objects.select_related(
-        'habitacion', 'asignado_a',
+        'habitacion', 'asignado_a__rol', 'asignado_a__area',
     ).all()
     serializer_class = AsignacionTareaSerializer
     filterset_fields = ['estado', 'prioridad', 'habitacion', 'asignado_a']
@@ -102,7 +102,7 @@ class AsignacionTareaViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def historial(self, request, pk=None):
         """Bitácora de cambios de estado (TaskDetailScreen)."""
-        historial = self.get_object().historial.select_related('usuario').all()
+        historial = self.get_object().historial.select_related('usuario', 'usuario__rol', 'usuario__area').all()
         serializer = HistorialEstadoTareaSerializer(
             historial, many=True, context={'request': request},
         )

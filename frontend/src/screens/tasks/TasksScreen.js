@@ -18,7 +18,7 @@ import {
   SectionTitle,
   makeErrorHandler,
 } from '../../components/ui';
-import { habLabel, userLabel, estadoLabel } from '../../utils/labels';
+import { habLabel, userLabel, userDetalleLabel, estadoLabel } from '../../utils/labels';
 import { useStaggeredAnimation, staggeredEntranceStyle } from '../../utils/animations';
 
 export default function TasksScreen({ navigation }) {
@@ -109,10 +109,22 @@ export default function TasksScreen({ navigation }) {
               </View>
               <Text style={styles.meta}>Habitación: {habLabel(t.habitacion)}</Text>
               <View style={styles.cardFoot}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                  <Badge label={`Prioridad ${t.prioridad}`} color={prioridadColor[t.prioridad] || colors.textMuted} />
-                  {!esOperario && <Text style={styles.asignado}>{userLabel(t.asignado_a)}</Text>}
-                </View>
+                <Badge label={`Prioridad ${t.prioridad}`} color={prioridadColor[t.prioridad] || colors.textMuted} />
+                {!esOperario && t.asignado_a ? (
+                  <View style={styles.asignadoContainer}>
+                    <Text style={styles.asignadoIcon}>👤</Text>
+                    <Text style={styles.asignadoNombre} numberOfLines={1}>
+                      {userLabel(t.asignado_a)}
+                    </Text>
+                    {(t.asignado_a.rol_nombre || t.asignado_a.area_nombre) ? (
+                      <View style={styles.rolBadge}>
+                        <Text style={styles.rolBadgeText}>
+                          {[t.asignado_a.rol_nombre, t.asignado_a.area_nombre].filter(Boolean).join(' · ')}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
               </View>
             </Card>
           </Animated.View>
@@ -156,9 +168,39 @@ const styles = StyleSheet.create({
   meta: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, marginBottom: 6 },
   cardFoot: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.sm,
+    flexWrap: 'wrap',
+    marginTop: 6,
+  },
+  asignadoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    gap: 4,
+    maxWidth: '75%',
+  },
+  asignadoIcon: { fontSize: 11 },
+  asignadoNombre: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 12,
+    color: colors.primary,
+  },
+  rolBadge: {
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: radius.pill,
+  },
+  rolBadgeText: {
+    fontFamily: fonts.body,
+    fontSize: 10,
+    color: colors.primary,
+    textTransform: 'uppercase',
   },
   asignado: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted },
   fab: {

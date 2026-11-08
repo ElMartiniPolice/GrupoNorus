@@ -3,12 +3,12 @@
  * POST /tasks/tareas/ {titulo, descripcion, habitacion, asignado_a, prioridad, estado}.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { taskService, PRIORIDADES } from '../../services/taskService';
 import { roomService } from '../../services/roomService';
 import { userService } from '../../services/userService';
-import { colors, fonts, spacing } from '../../theme';
+import { colors, fonts, spacing, radius } from '../../theme';
 import {
   Button,
   Card,
@@ -29,6 +29,7 @@ export default function CreateTaskScreen({ navigation }) {
   const [prioridad, setPrioridad] = useState('MEDIA');
   const [habitaciones, setHabitaciones] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
+  const [filtroArea, setFiltroArea] = useState('TODAS');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const onError = useCallback(makeErrorHandler(logout), [logout]);
@@ -41,7 +42,7 @@ export default function CreateTaskScreen({ navigation }) {
         setUsuarios(
           (Array.isArray(u) ? u : []).map((x) => ({
             ...x,
-            nombre: [x.nombre, x.apellido].filter(Boolean).join(' '),
+            nombre_completo: [x.nombre, x.apellido].filter(Boolean).join(' ') || x.username,
           })),
         );
       } catch (e) {
@@ -51,6 +52,12 @@ export default function CreateTaskScreen({ navigation }) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const areas = ['TODAS', ...new Set(usuarios.map((u) => u.area_nombre).filter(Boolean))];
+  const usuariosFiltrados =
+    filtroArea === 'TODAS'
+      ? usuarios
+      : usuarios.filter((u) => u.area_nombre === filtroArea);
 
   const guardar = async () => {
     setError('');
@@ -74,6 +81,8 @@ export default function CreateTaskScreen({ navigation }) {
       setSaving(false);
     }
   };
+
+  const seleccionado = usuarios.find((u) => u.id === asignado);
 
   return (
     <Screen>
@@ -101,14 +110,82 @@ export default function CreateTaskScreen({ navigation }) {
           keyBy="id"
           labelKey="numero"
         />
-        <ChipSelect
-          label="Responsable"
-          options={usuarios}
-          value={asignado}
-          onChange={setAsignado}
-          keyBy="id"
-          labelKey="nombre"
-        />
+
+        {/* ---- SELECTOR DE RESPONSABLE MEJORADO ---- */}
+        <View style={styles.inputWrap}>
+          <Text style={styles.inputLabel}>Responsable</Text>
+
+          {seleccionado ? (
+            <View style={styles.seleccionadoCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.seleccionadoNombre}>
+                  {seleccionado.nombre_completo}
+                </Text>
+                <Text style={styles.seleccionadoMeta}>
+                  {seleccionado.rol_nombre || '—'} · {seleccionado.area_nombre || '—'}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setAsignado(null)}>
+                <Text style={styles.cambiarBtn}>Cambiar</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {!seleccionado ? (
+            <>
+              <Text style={styles.filtroLabel}>Filtrar por área:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.areaScroll}>
+                {areas.map((a) => (
+                  <TouchableOpacity
+                    key={a}
+                    style={[
+                      styles.areaChip,
+                      filtroArea === a && styles.areaChipActive,
+                    ]}
+                    onPress={() => setFiltroArea(a)}
+                  >
+                    <Text
+                      style={[
+                        styles.areaChipText,
+                        filtroArea === a && styles.areaChipTextActive,
+                      ]}
+                    >
+                      {a === 'TODAS' ? 'Todas las áreas' : a}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {usuariosFiltrados.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  No hay usuarios en esta área.
+                </Text>
+              ) : null}
+
+              {usuariosFiltrados.map((u) => (
+                <TouchableOpacity
+                  key={u.id}
+                  style={[
+                    styles.userCard,
+                    asignado === u.id && styles.userCardActive,
+                  ]}
+                  onPress={() => setAsignado(u.id)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.userNombre}>{u.nombre_completo}</Text>
+                    <View style={styles.userMetaRow}>
+                      <View style={[styles.rolBadge, rolBadgeColor(u.rol_nombre)]}>
+                        <Text style={styles.rolBadgeText}>{u.rol_nombre || '—'}</Text>
+                      </View>
+                      <Text style={styles.areaBadge}>{u.area_nombre || '—'}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </>
+          ) : null}
+        </View>
+
         <ChipSelect
           label="Prioridad"
           options={PRIORIDADES}
@@ -125,11 +202,137 @@ export default function CreateTaskScreen({ navigation }) {
   );
 }
 
+function rolBadgeColor(rol) {
+  switch (rol) {
+    case 'ADMINISTRADOR':
+      return { backgroundColor: `${colors.primary}22`, borderColor: colors.primary };
+    case 'RECEPCION':
+      return { backgroundColor: `${colors.primaryLight}22`, borderColor: colors.primaryLight };
+    case 'OPERARIO':
+      return { backgroundColor: `${colors.gold}22`, borderColor: colors.gold };
+    default:
+      return { backgroundColor: `${colors.textMuted}22`, borderColor: colors.textMuted };
+  }
+}
+
 const styles = StyleSheet.create({
   nota: {
     fontFamily: fonts.body,
     fontSize: 12,
     color: colors.textMuted,
     marginBottom: spacing.md,
+  },
+  inputWrap: {
+    marginBottom: spacing.md,
+  },
+  inputLabel: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13,
+    color: colors.primary,
+    marginBottom: spacing.xs,
+  },
+  filtroLabel: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    marginBottom: spacing.xs,
+  },
+  areaScroll: {
+    marginBottom: spacing.sm,
+  },
+  areaChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    marginRight: spacing.xs,
+    borderWidth: 1,
+    borderColor: `${colors.primary}22`,
+  },
+  areaChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  areaChipText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.primary,
+  },
+  areaChipTextActive: {
+    fontFamily: fonts.bodyBold,
+    color: colors.white,
+  },
+  emptyText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: spacing.md,
+  },
+  userCard: {
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
+    padding: spacing.sm + 4,
+    marginBottom: spacing.xs + 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  userCardActive: {
+    borderColor: colors.primary,
+    backgroundColor: `${colors.primaryLight}12`,
+  },
+  userNombre: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: 2,
+  },
+  userMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: 2,
+  },
+  rolBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  rolBadgeText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    color: colors.text,
+  },
+  areaBadge: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  seleccionadoCard: {
+    backgroundColor: `${colors.primaryLight}12`,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  seleccionadoNombre: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 15,
+    color: colors.primary,
+  },
+  seleccionadoMeta: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  cambiarBtn: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13,
+    color: colors.primaryLight,
   },
 });

@@ -126,11 +126,18 @@ export default function RoomsScreen({ navigation }) {
             </View>
             <Text style={styles.meta}>Tipo: {tipoLabel(r.tipo)}</Text>
             <View style={styles.cardFoot}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                <Badge
-                  label={r.estado ?? '—'}
-                  color={roomEstadoColor[r.estado] || colors.textMuted}
-                />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+                {r.items_faltantes_count > 0 ? (
+                  <Badge
+                    label={`${r.items_faltantes_count} faltante(s)`}
+                    color={colors.coral}
+                  />
+                ) : (
+                  <Badge
+                    label="Inventario OK"
+                    color={colors.primarySoft}
+                  />
+                )}
               </View>
             </View>
           </Card>

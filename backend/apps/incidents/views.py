@@ -30,7 +30,9 @@ class IncidenciaViewSet(viewsets.ModelViewSet):
     - `POST /incidencias/<id>/resolver/` cierra la incidencia
       (acepta cuerpo vacío o {comentario}).
     """
-    queryset = Incidencia.objects.select_related('habitacion', 'reportado_por').all()
+    queryset = Incidencia.objects.select_related(
+        'habitacion', 'reportado_por', 'reportado_por__rol', 'reportado_por__area',
+    ).all()
     serializer_class = IncidenciaSerializer
     filterset_fields = ['severidad', 'habitacion', 'requiere_evidencia']
     permission_classes = [IsAuthenticated]

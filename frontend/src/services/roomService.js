@@ -70,4 +70,28 @@ export const roomService = {
     const { data } = await api.get(`/rooms/habitaciones/${habitacionId}/cambios_estado/`);
     return data.results ?? data;
   },
+  /** Inventario de la habitación (artículos, faltantes y solicitudes). */
+  async inventario(habitacionId) {
+    const { data } = await api.get(`/rooms/habitaciones/${habitacionId}/inventario/`);
+    return data.results ?? data;
+  },
+  /** Solicita reposición o marca un ítem como faltante. */
+  async solicitarItem(itemId, notas = '') {
+    const { data } = await api.post(`/rooms/inventario/${itemId}/solicitar/`, { notas });
+    return data;
+  },
+  /** Marca un ítem solicitado como repuesto (COMPLETO). */
+  async reponerItem(itemId) {
+    const { data } = await api.post(`/rooms/inventario/${itemId}/reponer/`);
+    return data;
+  },
+  /** Agrega un nuevo ítem al inventario de una habitación. */
+  async crearItem(payload) {
+    const { data } = await api.post('/rooms/inventario/', payload);
+    return data;
+  },
+  /** Elimina un ítem del inventario. */
+  async eliminarItem(itemId) {
+    await api.delete(`/rooms/inventario/${itemId}/`);
+  },
 };

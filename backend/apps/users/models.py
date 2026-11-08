@@ -82,6 +82,7 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         db_table = 'usuario'
         verbose_name = 'Usuario'
         verbose_name_plural = 'Usuarios'
+        ordering = ['nombre', 'apellido']
 
     def __str__(self):
         return f'{self.nombre} {self.apellido} ({self.rut})'

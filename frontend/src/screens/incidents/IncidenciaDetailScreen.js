@@ -152,6 +152,9 @@ export default function IncidenciaDetailScreen({ route }) {
             <Row label="Estado" value={estadoLabel(estado)} />
             <Row label="Habitación" value={habLabel(inc.habitacion)} />
             <Row label="Reportada por" value={userLabel(inc.reportada_por)} />
+            {inc.reportada_por?.rol_nombre ? (
+              <Row label="Rol / Área" value={[inc.reportada_por.rol_nombre, inc.reportada_por.area_nombre].filter(Boolean).join(' · ')} />
+            ) : null}
             <Row label="Creada" value={formatFecha(inc.creada_en)} />
             {inc.atendida_en ? <Row label="Atendida" value={formatFecha(inc.atendida_en)} /> : null}
             {slaText(inc.severidad) ? <Text style={styles.sla}>{slaText(inc.severidad)}</Text> : null}

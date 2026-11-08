@@ -21,7 +21,7 @@ import {
   formatFecha,
   makeErrorHandler,
 } from '../../components/ui';
-import { habLabel, userLabel, estadoLabel } from '../../utils/labels';
+import { habLabel, userLabel, userDetalleLabel, estadoLabel } from '../../utils/labels';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -34,8 +34,8 @@ function evidenciaUri(e) {
 
 function historialLine(h) {
   const fecha = formatFecha(h.fecha);
-  const estado = estadoLabel(h.estado);
-  const usuario = userLabel(h.cambiado_por);
+  const estado = estadoLabel(h.estado_nuevo || h.estado);
+  const usuario = userDetalleLabel(h.usuario || h.cambiado_por);
   return `${fecha} · ${estado} · ${usuario}`;
 }
 
@@ -154,6 +154,12 @@ export default function TaskDetailScreen({ route }) {
             </View>
             <Row label="Habitación" value={habLabel(tarea.habitacion)} />
             <Row label="Responsable" value={userLabel(tarea.asignado_a)} />
+            {tarea.asignado_a?.rol_nombre ? (
+              <Row label="Rol responsable" value={tarea.asignado_a.rol_nombre} />
+            ) : null}
+            {tarea.asignado_a?.area_nombre ? (
+              <Row label="Área responsable" value={tarea.asignado_a.area_nombre} />
+            ) : null}
             <Row label="Prioridad" value={tarea.prioridad} />
             <Row label="Creada" value={formatFecha(tarea.creada_en)} />
             {tarea.descripcion ? (
