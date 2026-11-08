@@ -12,6 +12,7 @@ from apps.users.serializers import UsuarioMiniSerializer
 from .models import (
     CambioEstadoHabitacion,
     Habitacion,
+    ItemInventario,
     RegistroEstadia,
     TipoHabitacion,
 )
@@ -36,10 +37,14 @@ class HabitacionSerializer(serializers.ModelSerializer):
         queryset=TipoHabitacion.objects.all(),
         serializer_class=TipoHabitacionSerializer,
     )
+    items_faltantes_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Habitacion
-        fields = ['id', 'numero', 'tipo', 'estado']
+        fields = ['id', 'numero', 'tipo', 'estado', 'items_faltantes_count']
+
+    def get_items_faltantes_count(self, obj):
+        return obj.inventario.filter(estado__in=['SOLICITADO', 'FALTANTE']).count()
 
 
 class RegistroEstadiaSerializer(serializers.ModelSerializer):
@@ -77,3 +82,20 @@ class CambioEstadoHabitacionSerializer(serializers.ModelSerializer):
             'id', 'habitacion', 'estado_anterior', 'estado_nuevo',
             'foto', 'cambiado_por', 'fecha',
         ]
+
+
+class ItemInventarioSerializer(serializers.ModelSerializer):
+    habitacion = NestedPKRelatedField(
+        queryset=Habitacion.objects.all(),
+        serializer_class=HabitacionMiniSerializer,
+    )
+    solicitado_por = UsuarioMiniSerializer(read_only=True)
+
+    class Meta:
+        model = ItemInventario
+        fields = [
+            'id', 'habitacion', 'nombre', 'categoria', 'cantidad',
+            'estado', 'notas', 'solicitado_en', 'solicitado_por',
+            'actualizado_en',
+        ]
+

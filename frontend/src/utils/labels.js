@@ -17,6 +17,15 @@ export function userLabel(u) {
   return String(u);
 }
 
+export function userDetalleLabel(u) {
+  if (!u || typeof u !== 'object') return userLabel(u);
+  const name = userLabel(u);
+  const parts = [];
+  if (u.rol_nombre) parts.push(u.rol_nombre);
+  if (u.area_nombre) parts.push(u.area_nombre);
+  return parts.length ? `${name} (${parts.join(' · ')})` : name;
+}
+
 export function estadoLabel(e) {
   return String(e ?? '').replace(/_/g, ' ');
 }

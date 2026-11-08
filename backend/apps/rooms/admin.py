@@ -3,7 +3,7 @@ Admin de habitaciones y estadías — Grupo Norus.
 """
 from django.contrib import admin
 
-from .models import Habitacion, RegistroEstadia, TipoHabitacion
+from .models import Habitacion, ItemInventario, RegistroEstadia, TipoHabitacion
 
 
 @admin.register(TipoHabitacion)
@@ -24,3 +24,11 @@ class RegistroEstadiaAdmin(admin.ModelAdmin):
     list_display = ('id', 'habitacion', 'huesped', 'llegada', 'salida', 'conflicto')
     list_filter = ('conflicto',)
     search_fields = ('huesped',)
+
+
+@admin.register(ItemInventario)
+class ItemInventarioAdmin(admin.ModelAdmin):
+    list_display = ('id', 'habitacion', 'nombre', 'categoria', 'cantidad', 'estado', 'solicitado_por', 'solicitado_en')
+    list_filter = ('estado', 'categoria', 'habitacion')
+    search_fields = ('nombre', 'habitacion__numero')
+

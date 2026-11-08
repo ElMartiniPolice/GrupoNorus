@@ -22,12 +22,14 @@ class AreaSerializer(serializers.ModelSerializer):
 class UsuarioMiniSerializer(serializers.ModelSerializer):
     """
     Representación anidada mínima de usuario para FKs:
-    {id, nombre, apellido, rut} — contrato del frontend.
+    {id, nombre, apellido, rut, rol_nombre, area_nombre}
     """
+    rol_nombre = serializers.CharField(source='rol.nombre', read_only=True)
+    area_nombre = serializers.CharField(source='area.nombre', read_only=True)
 
     class Meta:
         model = Usuario
-        fields = ['id', 'nombre', 'apellido', 'rut']
+        fields = ['id', 'nombre', 'apellido', 'rut', 'rol_nombre', 'area_nombre']
 
 
 class UsuarioSerializer(serializers.ModelSerializer):

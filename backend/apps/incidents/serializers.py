@@ -43,6 +43,7 @@ class IncidenciaSerializer(serializers.ModelSerializer):
             'id', 'titulo', 'descripcion', 'habitacion', 'severidad',
             'reportado_por', 'reportada_por', 'requiere_evidencia',
             'creada_en', 'atendida_en', 'resuelta_en',
+            'comentario_resolucion',
         ]
         read_only_fields = ['creada_en', 'atendida_en', 'resuelta_en']
 
