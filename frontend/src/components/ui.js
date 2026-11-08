@@ -6,6 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Animated,
   Platform,
   RefreshControl,
@@ -68,15 +69,18 @@ export function Screen({ children, scroll = true, style, contentStyle, refreshin
 }
 
 /** Wordmark NORUS APARTMENTS (Cormorant SC + Lato con tracking dorado). */
-export function BrandMark({ size = 34, light = false, style }) {
+export function BrandMark({ size = 34, light = false, style, logo = false }) {
   return (
     <View style={[styles.brandWrap, style]}>
+      {logo && !light ? (
+        <Image source={require('../../assets/norus-logo.png')} resizeMode="contain" style={{ width: size * 4.3, height: size * 1.35 }} accessibilityLabel="Logo Norus" />
+      ) : (
       <Text
         style={[styles.brandName, { fontSize: size, color: light ? colors.white : colors.primary }]}
       >
         {BRAND_NAME}
-      </Text>
-      <Text style={styles.brandTag}>{BRAND_TAGLINE}</Text>
+      </Text>)}
+      <Text style={[styles.brandTag, logo && !light && { color: colors.primaryLight }]}>{BRAND_TAGLINE}</Text>
     </View>
   );
 }
@@ -196,7 +200,7 @@ export function Button({ title, onPress, variant = 'primary', disabled, loading,
 }
 
 /** Campo con etiqueta y error, estilo Lato sobre blanco. Con focus ring animado. */
-export function Input({ label, error, style, ...props }) {
+export function Input({ label, error, style, light = false, ...props }) {
   const [focused, setFocused] = useState(false);
   const borderAnim = useRef(new Animated.Value(0)).current;
 
@@ -231,7 +235,9 @@ export function Input({ label, error, style, ...props }) {
 
   return (
     <View style={[styles.inputWrap, style]}>
-      {label ? <Text style={styles.inputLabel}>{label}</Text> : null}
+      {label ? (
+        <Text style={[styles.inputLabel, light && { color: colors.white }]}>{label}</Text>
+      ) : null}
       <Animated.View
         style={[
           styles.input,
@@ -431,7 +437,14 @@ export function formatFecha(iso) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
-  content: { paddingHorizontal: spacing.lg + 4, paddingTop: spacing.lg, paddingBottom: spacing.xl + 8 },
+  content: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg + 4,
+    paddingBottom: spacing.xl + 16,
+    width: '100%',
+    maxWidth: 1160,
+    alignSelf: 'center',
+  },
   brandWrap: { alignItems: 'center' },
   brandName: { fontFamily: fonts.title, letterSpacing: 4 },
   brandTag: {
@@ -457,13 +470,13 @@ const styles = StyleSheet.create({
   badgeText: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 0.5 },
   btn: {
     borderRadius: radius.md,
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 44,
   },
   btnDisabled: { opacity: 0.45 },
-  btnText: { fontFamily: fonts.bodyBold, fontSize: 15, letterSpacing: 0.5 },
+  btnText: { fontFamily: fonts.bodyBold, fontSize: 13, letterSpacing: 0.15 },
   inputWrap: { marginBottom: spacing.md },
   inputLabel: {
     fontFamily: fonts.bodyBold,
@@ -477,7 +490,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingVertical: 12,
     fontSize: 15,
     color: colors.text,
     fontFamily: fonts.body,
@@ -503,7 +516,7 @@ const styles = StyleSheet.create({
   chipTextActive: { color: colors.white },
   sectionTitle: {
     fontFamily: fonts.title,
-    fontSize: 22,
+    fontSize: 24,
     color: colors.primary,
     marginTop: spacing.lg,
     marginBottom: spacing.md,

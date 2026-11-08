@@ -19,8 +19,18 @@ class EvidenciaFotografica(models.Model):
     incidencia = models.ForeignKey(
         'incidents.Incidencia',
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='evidencias',
         verbose_name='incidencia',
+    )
+    tarea = models.ForeignKey(
+        'tasks.AsignacionTarea',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='evidencias',
+        verbose_name='tarea',
     )
     imagen = models.ImageField(
         upload_to='evidencias/%Y/%m/',
@@ -44,4 +54,8 @@ class EvidenciaFotografica(models.Model):
         verbose_name_plural = 'evidencias fotográficas'
 
     def __str__(self):
-        return f'Evidencia #{self.pk} — incidencia #{self.incidencia_id}'
+        if self.incidencia_id:
+            return f'Evidencia #{self.pk} — incidencia #{self.incidencia_id}'
+        if self.tarea_id:
+            return f'Evidencia #{self.pk} — tarea #{self.tarea_id}'
+        return f'Evidencia #{self.pk}'

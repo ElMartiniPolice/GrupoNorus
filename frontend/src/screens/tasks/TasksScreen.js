@@ -1,32 +1,40 @@
 /**
- * TasksScreen — CU2/CU5: Listado de tareas.
+ * TasksScreen — CU2/CU5: Listado de tareas con diseño moderno NORUS.
  * OPERARIO ve solo las suyas (GET /tasks/tareas/?mias=true); el resto ve todas.
  */
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Animated } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, TextInput, useWindowDimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { taskService, ESTADOS_TAREA } from '../../services/taskService';
 import { colors, fonts, spacing, radius, prioridadColor, taskEstadoColor } from '../../theme';
 import {
   Badge,
-  Card,
   EmptyState,
   ErrorBanner,
   Loading,
   Screen,
-  SectionTitle,
   makeErrorHandler,
 } from '../../components/ui';
-import { habLabel, userLabel, userDetalleLabel, estadoLabel } from '../../utils/labels';
-import { useStaggeredAnimation, staggeredEntranceStyle } from '../../utils/animations';
+import { habLabel, userLabel, estadoLabel } from '../../utils/labels';
+
+const TASK_STATUS_TILES = [
+  { id: 'TODAS', text: 'Todas', icon: 'clipboard-outline' },
+  { id: 'PENDIENTE', text: 'Pendientes', icon: 'hourglass-outline' },
+  { id: 'EN_PROGRESO', text: 'En progreso', icon: 'play-outline' },
+  { id: 'COMPLETADA', text: 'Completadas', icon: 'checkmark-circle-outline' },
+  { id: 'CANCELADA', text: 'Canceladas', icon: 'close-circle-outline' },
+];
 
 export default function TasksScreen({ navigation }) {
   const { user, logout } = useAuth();
+  const { width } = useWindowDimensions();
   const [tareas, setTareas] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [estado, setEstado] = useState('TODAS');
+  const [search, setSearch] = useState('');
   const esOperario = user?.rol_nombre === 'OPERARIO';
   const onError = useCallback(makeErrorHandler(logout), [logout]);
 
@@ -48,88 +56,190 @@ export default function TasksScreen({ navigation }) {
     [esOperario, onError],
   );
 
-  // Refresco silencioso al volver al foco (p. ej. tras crear/editar una tarea).
+  useEffect(() => {
+    load();
+  }, [load]);
+
   useFocusEffect(
     useCallback(() => {
       load(true);
     }, [load]),
   );
 
-  // Memoize filtered tasks to avoid re-filtering on every render
-    const filteredTareas = useMemo(
-      () => {
-        if (!tareas) return [];
-        if (estado === 'TODAS') return tareas;
-        return tareas.filter((t) => t.estado === estado);
-      },
-      [tareas, estado],
-    );
+  const counts = useMemo(() => {
+    const tally = { TODAS: tareas?.length || 0 };
+    TASK_STATUS_TILES.slice(1).forEach((s) => {
+      tally[s.id] = (tareas || []).filter((t) => t.estado === s.id).length;
+    });
+    return tally;
+  }, [tareas]);
 
-    // Staggered entrance animations
-    const cardAnims = useMemo(
-      () => useStaggeredAnimation(filteredTareas.length, 60, 300),
-      [filteredTareas.length]
-    );
+  const filteredTareas = useMemo(() => {
+    return (tareas || []).filter((t) => {
+      const matchEstado = estado === 'TODAS' || t.estado === estado;
+      const term = search.trim().toLowerCase();
+      const matchSearch =
+        !term ||
+        String(t.titulo || '').toLowerCase().includes(term) ||
+        String(habLabel(t.habitacion)).toLowerCase().includes(term) ||
+        String(userLabel(t.asignado_a)).toLowerCase().includes(term);
+      return matchEstado && matchSearch;
+    });
+  }, [tareas, estado, search]);
+
+  const cardWidth = width >= 1180 ? '31.8%' : width >= 720 ? '48.7%' : '100%';
 
   return (
     <View style={styles.wrap}>
       <Screen refreshing={refreshing} onRefresh={() => load(true)}>
-        <SectionTitle>Tareas</SectionTitle>
-        <View style={styles.chips}>
-          {['TODAS', ...ESTADOS_TAREA].map((e) => (
-            <TouchableOpacity
-              key={e}
-              style={[styles.chip, estado === e && styles.chipActive]}
-              onPress={() => setEstado(e)}
-            >
-              <Text style={[styles.chipText, estado === e && styles.chipTextActive]}>
-                {e === 'TODAS' ? 'Todas' : estadoLabel(e)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* Header Hero */}
+        <View style={styles.titleRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.overline}>OPERACIONES Y ASIGNACIONES</Text>
+            <Text style={styles.title}>{esOperario ? 'Mis Tareas' : 'Tareas'}</Text>
+            <Text style={styles.description}>
+              {esOperario
+                ? 'Tareas asignadas a tu cargo para hoy.'
+                : 'Asignación, seguimiento y control de tareas del equipo hotelero.'}
+            </Text>
+          </View>
+          <View style={styles.totalPill}>
+            <Ionicons name="clipboard-outline" size={17} color={colors.primary} />
+            <Text style={styles.totalText}>{counts.TODAS} tareas</Text>
+          </View>
         </View>
+
         {error ? <ErrorBanner message={error} /> : null}
+
+        {/* Status Tiles */}
+        <View style={styles.countsRow}>
+          {TASK_STATUS_TILES.slice(1).map((s) => {
+            const color = taskEstadoColor[s.id] || colors.primaryLight;
+            const isSelected = estado === s.id;
+            return (
+              <TouchableOpacity
+                key={s.id}
+                onPress={() => setEstado(isSelected ? 'TODAS' : s.id)}
+                style={[styles.statusTile, isSelected && styles.selectedTile]}
+              >
+                <View style={[styles.statusIcon, { backgroundColor: color + '1F' }]}>
+                  <Ionicons name={s.icon} color={color} size={18} />
+                </View>
+                <Text style={styles.statusNumber}>{counts[s.id]}</Text>
+                <Text style={styles.statusLabel}>{s.text}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Search & Filters */}
+        <View style={styles.filtersPanel}>
+          <View style={styles.searchBox}>
+            <Ionicons name="search-outline" size={18} color={colors.textMuted} />
+            <TextInput
+              placeholder="Buscar por título, habitación o responsable…"
+              placeholderTextColor={colors.textMuted}
+              value={search}
+              onChangeText={setSearch}
+              style={styles.searchInput}
+            />
+            {search ? (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Ionicons name="close-circle" size={17} color={colors.textMuted} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          <View style={styles.filters}>
+            {TASK_STATUS_TILES.map((s) => (
+              <TouchableOpacity
+                key={s.id}
+                onPress={() => setEstado(s.id)}
+                style={[styles.chip, estado === s.id && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, estado === s.id && styles.chipTextActive]}>
+                  {s.text}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         {!tareas && !error && <Loading label="Cargando tareas…" />}
+
         {tareas && filteredTareas.length === 0 && !error && (
-          <EmptyState message="No hay tareas para mostrar." />
+          <EmptyState message="No hay tareas que coincidan con la búsqueda." />
         )}
-                {filteredTareas.map((t, index) => (
-          <Animated.View
-            key={t.id}
-            style={staggeredEntranceStyle(cardAnims[index], 16)}
-          >
-            <Card
-              elevationLevel="level1"
-              key={t.id}
-              onPress={() => navigation.navigate('TaskDetail', { id: t.id })}
-            >
-              <View style={styles.cardHead}>
-                <Text style={styles.titulo}>{t.titulo}</Text>
-                <Badge label={estadoLabel(t.estado)} color={taskEstadoColor[t.estado] || colors.textMuted} />
-              </View>
-              <Text style={styles.meta}>Habitación: {habLabel(t.habitacion)}</Text>
-              <View style={styles.cardFoot}>
-                <Badge label={`Prioridad ${t.prioridad}`} color={prioridadColor[t.prioridad] || colors.textMuted} />
-                {!esOperario && t.asignado_a ? (
-                  <View style={styles.asignadoContainer}>
-                    <Text style={styles.asignadoIcon}>👤</Text>
-                    <Text style={styles.asignadoNombre} numberOfLines={1}>
-                      {userLabel(t.asignado_a)}
+
+        {/* Grid de Tareas */}
+        <View style={styles.grid}>
+          {filteredTareas.map((t) => {
+            const colorEstado = taskEstadoColor[t.estado] || colors.textMuted;
+            const colorPrio = prioridadColor[t.prioridad] || colors.primaryLight;
+            return (
+              <TouchableOpacity
+                key={t.id}
+                style={[styles.taskCard, { width: cardWidth }]}
+                onPress={() => navigation.navigate('TaskDetail', { id: t.id })}
+                activeOpacity={0.88}
+              >
+                <View style={[styles.cardStrip, { backgroundColor: colorPrio }]} />
+                <View style={styles.cardInner}>
+                  <View style={styles.cardHead}>
+                    <View style={styles.roomBadgeWrap}>
+                      <Ionicons
+                        name={t.habitacion && habLabel(t.habitacion) !== '—' ? 'bed-outline' : 'business-outline'}
+                        size={16}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.roomBadgeText}>
+                        {t.habitacion && habLabel(t.habitacion) !== '—'
+                          ? `Hab. ${habLabel(t.habitacion)}`
+                          : 'Área General'}
+                      </Text>
+                    </View>
+                    <Badge label={estadoLabel(t.estado)} color={colorEstado} />
+                  </View>
+
+                  <Text style={styles.cardTitulo} numberOfLines={2}>
+                    {t.titulo}
+                  </Text>
+
+                  {t.descripcion ? (
+                    <Text style={styles.cardDesc} numberOfLines={2}>
+                      {t.descripcion}
                     </Text>
-                    {(t.asignado_a.rol_nombre || t.asignado_a.area_nombre) ? (
-                      <View style={styles.rolBadge}>
-                        <Text style={styles.rolBadgeText}>
-                          {[t.asignado_a.rol_nombre, t.asignado_a.area_nombre].filter(Boolean).join(' · ')}
+                  ) : null}
+
+                  <View style={styles.divider} />
+
+                  <View style={styles.cardFoot}>
+                    <Badge label={`Prioridad ${t.prioridad}`} color={colorPrio} />
+
+                    {!esOperario && t.asignado_a ? (
+                      <View style={styles.asignadoContainer}>
+                        <Ionicons name="person-circle-outline" size={15} color={colors.primary} />
+                        <Text style={styles.asignadoNombre} numberOfLines={1}>
+                          {userLabel(t.asignado_a)}
                         </Text>
+                        {(t.asignado_a.rol_nombre || t.asignado_a.area_nombre) ? (
+                          <View style={styles.rolBadge}>
+                            <Text style={styles.rolBadgeText}>
+                              {[t.asignado_a.rol_nombre, t.asignado_a.area_nombre].filter(Boolean).join(' · ')}
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
                     ) : null}
                   </View>
-                ) : null}
-              </View>
-            </Card>
-          </Animated.View>
-        ))}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </Screen>
+
+      {/* FAB para crear nueva tarea si no es operario */}
       {!esOperario && (
         <TouchableOpacity
           style={styles.fab}
@@ -144,65 +254,173 @@ export default function TasksScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  chip: {
+  wrap: { flex: 1, backgroundColor: colors.surface },
+  titleRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 15,
+    marginBottom: 20,
+  },
+  overline: {
+    color: colors.primaryLight,
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 1.7,
+    marginBottom: 5,
+  },
+  title: { color: colors.primary, fontFamily: fonts.title, fontSize: 32 },
+  description: { color: colors.textMuted, fontFamily: fonts.body, fontSize: 13, marginTop: 3 },
+  totalPill: {
+    backgroundColor: colors.surfaceBrand,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.primarySoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  totalText: { color: colors.primary, fontFamily: fonts.bodyBold, fontSize: 12 },
+  countsRow: { flexDirection: 'row', gap: '1.5%', rowGap: 10, flexWrap: 'wrap', marginBottom: 18 },
+  statusTile: {
     backgroundColor: colors.white,
+    minWidth: 130,
+    flexBasis: '23.5%',
+    flexGrow: 1,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: 14,
+    minHeight: 105,
+  },
+  selectedTile: { borderColor: colors.primaryLight, borderWidth: 2, backgroundColor: '#F4F9FC' },
+  statusIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusNumber: { fontFamily: fonts.bodyBold, fontSize: 22, color: colors.primary },
+  statusLabel: { fontFamily: fonts.body, color: colors.textMuted, fontSize: 12, marginTop: 2 },
+  filtersPanel: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: 14,
+    marginBottom: 18,
+    gap: 12,
+  },
+  searchBox: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    minHeight: 42,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.primary,
+    paddingVertical: 6,
+  },
+  filters: { flexDirection: 'row', gap: 7, flexWrap: 'wrap' },
+  chip: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.primary },
+  chipText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.primary },
   chipTextActive: { color: colors.white },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: '2%', rowGap: 14 },
+  taskCard: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    minWidth: 240,
+    flexGrow: 1,
+  },
+  cardStrip: { height: 4 },
+  cardInner: { padding: 16 },
   cardHead: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
-    gap: spacing.sm,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
-  titulo: { fontFamily: fonts.serif, fontSize: 17, color: colors.primary, flex: 1 },
-  meta: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, marginBottom: 6 },
+  roomBadgeWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.surfaceBrand,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  roomBadgeText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.primary },
+  cardTitulo: {
+    fontFamily: fonts.serif,
+    fontSize: 17,
+    color: colors.primary,
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  cardDesc: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    lineHeight: 17,
+    marginBottom: 6,
+  },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 12 },
   cardFoot: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: spacing.sm,
     flexWrap: 'wrap',
-    marginTop: 6,
+    gap: 8,
   },
   asignadoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.surfaceBrand,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: radius.pill,
-    gap: 4,
+    gap: 5,
     maxWidth: '75%',
   },
-  asignadoIcon: { fontSize: 11 },
   asignadoNombre: {
     fontFamily: fonts.bodyBold,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.primary,
   },
   rolBadge: {
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.white,
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: radius.pill,
   },
   rolBadgeText: {
-    fontFamily: fonts.body,
-    fontSize: 10,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
     color: colors.primary,
     textTransform: 'uppercase',
   },
-  asignado: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted },
   fab: {
     position: 'absolute',
     bottom: 24,

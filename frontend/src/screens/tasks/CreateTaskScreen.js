@@ -24,6 +24,7 @@ export default function CreateTaskScreen({ navigation }) {
   const { logout } = useAuth();
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  const [tipoUbicacion, setTipoUbicacion] = useState('HABITACION');
   const [habitacion, setHabitacion] = useState(null);
   const [asignado, setAsignado] = useState(null);
   const [prioridad, setPrioridad] = useState('MEDIA');
@@ -62,14 +63,16 @@ export default function CreateTaskScreen({ navigation }) {
   const guardar = async () => {
     setError('');
     if (!titulo.trim()) return setError('Ingrese un título para la tarea.');
-    if (!habitacion) return setError('Seleccione una habitación.');
+    if (tipoUbicacion === 'HABITACION' && !habitacion) {
+      return setError('Seleccione una habitación o elija Área General.');
+    }
     if (!asignado) return setError('Seleccione un responsable.');
     setSaving(true);
     try {
       await taskService.create({
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
-        habitacion,
+        habitacion: tipoUbicacion === 'HABITACION' ? habitacion : null,
         asignado_a: asignado,
         prioridad,
         estado: 'PENDIENTE',
@@ -86,9 +89,16 @@ export default function CreateTaskScreen({ navigation }) {
 
   return (
     <Screen>
-      <SectionTitle>Nueva tarea</SectionTitle>
-      {error ? <ErrorBanner message={error} /> : null}
-      <Card elevationLevel="level2">
+      <View style={styles.container}>
+        <View style={styles.intro}>
+          <Text style={styles.overline}>TAREAS / ASIGNACIÓN</Text>
+          <Text style={styles.title}>Nueva tarea</Text>
+          <Text style={styles.description}>
+            Asigna una tarea a un responsable según su área y disponibilidad.
+          </Text>
+        </View>
+        {error ? <ErrorBanner message={error} /> : null}
+        <Card elevationLevel="level2" style={styles.formCard}>
         <Input
           label="Título"
           placeholder="Ej: Reparación de calefacción"
@@ -103,13 +113,30 @@ export default function CreateTaskScreen({ navigation }) {
           multiline
         />
         <ChipSelect
-          label="Habitación"
-          options={habitaciones}
-          value={habitacion}
-          onChange={setHabitacion}
+          label="Ubicación de la tarea"
+          options={[
+            { id: 'HABITACION', nombre: '🛏️ En una Habitación' },
+            { id: 'GENERAL', nombre: '🏢 Área General / Instalaciones comunes' },
+          ]}
+          value={tipoUbicacion}
+          onChange={(v) => {
+            setTipoUbicacion(v);
+            if (v === 'GENERAL') setHabitacion(null);
+          }}
           keyBy="id"
-          labelKey="numero"
+          labelKey="nombre"
         />
+
+        {tipoUbicacion === 'HABITACION' && (
+          <ChipSelect
+            label="Habitación"
+            options={habitaciones}
+            value={habitacion}
+            onChange={setHabitacion}
+            keyBy="id"
+            labelKey="numero"
+          />
+        )}
 
         {/* ---- SELECTOR DE RESPONSABLE MEJORADO ---- */}
         <View style={styles.inputWrap}>
@@ -198,7 +225,8 @@ export default function CreateTaskScreen({ navigation }) {
         </Text>
         <Button title="Asignar tarea" onPress={guardar} loading={saving} disabled={saving} />
       </Card>
-    </Screen>
+    </View>
+  </Screen>
   );
 }
 
@@ -216,6 +244,11 @@ function rolBadgeColor(rol) {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
+  },
   nota: {
     fontFamily: fonts.body,
     fontSize: 12,
@@ -334,5 +367,22 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyBold,
     fontSize: 13,
     color: colors.primaryLight,
+  },
+  intro: { marginBottom: 20 },
+  overline: {
+    fontFamily: fonts.bodyBold,
+    letterSpacing: 2,
+    color: colors.primaryLight,
+    fontSize: 10,
+    marginBottom: 5,
+  },
+  title: { color: colors.primary, fontFamily: fonts.title, fontSize: 32 },
+  description: { color: colors.textMuted, fontFamily: fonts.body, fontSize: 13, marginTop: 3 },
+  formCard: {
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
 });

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import api from './api';
 
 /**
@@ -52,16 +53,30 @@ export const roomService = {
     const form = new FormData();
     form.append('estado', String(estado));
     if (photo) {
-      form.append('imagen', {
-        uri: photo.uri,
-        type: photo.type || 'image/jpeg',
-        name: photo.name || `cambio_estado_${Date.now()}.jpg`,
-      });
+      if (Platform.OS === 'web') {
+        if (photo.file instanceof Blob) {
+          form.append('imagen', photo.file, photo.name || photo.fileName || `cambio_${Date.now()}.jpg`);
+        } else {
+          const res = await fetch(photo.uri);
+          const blob = await res.blob();
+          const file = new File([blob], photo.name || photo.fileName || `cambio_${Date.now()}.jpg`, {
+            type: photo.mimeType || photo.type || blob.type || 'image/jpeg',
+          });
+          form.append('imagen', file);
+        }
+      } else {
+        form.append('imagen', {
+          uri: photo.uri,
+          type: photo.mimeType || photo.type || 'image/jpeg',
+          name: photo.name || photo.fileName || `cambio_estado_${Date.now()}.jpg`,
+        });
+      }
     }
+    const headers = Platform.OS === 'web' ? { 'Content-Type': undefined } : { 'Content-Type': 'multipart/form-data' };
     const { data } = await api.post(
       `/rooms/habitaciones/${id}/cambiar_estado/`,
       form,
-      { headers: { 'Content-Type': 'multipart/form-data' } },
+      { headers },
     );
     return data;
   },

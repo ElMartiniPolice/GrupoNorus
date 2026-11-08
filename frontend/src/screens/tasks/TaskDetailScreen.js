@@ -1,9 +1,10 @@
 /**
- * TaskDetailScreen — CU6 (actualizar estado) y CU9 (validación por ADMINISTRADOR).
- * PATCH /tasks/tareas/:id/ {estado} · POST /tasks/tareas/:id/validar/ · GET .../historial/
+ * TaskDetailScreen — CU6 (actualizar estado) y CU9 (validación por ADMINISTRADOR)
+ * con diseño moderno NORUS y soporte multiplataforma.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, View, Image, Modal, TouchableOpacity, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, Image, Modal, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../context/AuthContext';
 import { taskService, ESTADOS_TAREA } from '../../services/taskService';
@@ -17,19 +18,24 @@ import {
   Loading,
   Row,
   Screen,
-  SectionTitle,
   formatFecha,
   makeErrorHandler,
 } from '../../components/ui';
 import { habLabel, userLabel, userDetalleLabel, estadoLabel } from '../../utils/labels';
+import { resolveMediaUrl } from '../../utils/media';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const ESTADO_ICONS = {
+  PENDIENTE: 'hourglass-outline',
+  EN_PROGRESO: 'play-outline',
+  COMPLETADA: 'checkmark-circle-outline',
+  CANCELADA: 'close-circle-outline',
+};
+
 function evidenciaUri(e) {
   if (!e) return null;
-  if (typeof e.imagen === 'string') return e.imagen;
-  if (e.imagen && typeof e.imagen === 'object') return e.imagen.url ?? e.imagen.image ?? null;
-  return e.archivo ?? e.foto ?? null;
+  return resolveMediaUrl(e.imagen ?? e.archivo ?? e.foto);
 }
 
 function historialLine(h) {
@@ -42,6 +48,8 @@ function historialLine(h) {
 export default function TaskDetailScreen({ route }) {
   const { id } = route.params;
   const { user, logout } = useAuth();
+  const esAdmin = user?.rol_nombre === 'ADMINISTRADOR';
+
   const [tarea, setTarea] = useState(null);
   const [historial, setHistorial] = useState([]);
   const [evidencias, setEvidencias] = useState([]);
@@ -50,18 +58,19 @@ export default function TaskDetailScreen({ route }) {
   const [busy, setBusy] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState(null);
-  const esAdmin = user?.rol_nombre === 'ADMINISTRADOR';
   const onError = useCallback(makeErrorHandler(logout), [logout]);
 
   const load = useCallback(async () => {
     try {
-      const t = await taskService.get(id);
+      const [t, h, ev] = await Promise.all([
+        taskService.get(id),
+        taskService.historial(id).catch(() => []),
+        evidenceService.porTarea(id).catch(() => []),
+      ]);
       setTarea(t);
-      setError('');
-      const h = await taskService.historial(id).catch(() => []);
       setHistorial(Array.isArray(h) ? h : []);
-      const ev = await evidenceService.porTarea(id).catch(() => []);
       setEvidencias(Array.isArray(ev) ? ev : []);
+      setError('');
     } catch (e) {
       const m = onError(e);
       if (m) setError(m);
@@ -72,11 +81,11 @@ export default function TaskDetailScreen({ route }) {
     load();
   }, [load]);
 
-  const cambiarEstado = async (nuevo) => {
+  const cambiarEstado = async (nuevoEstado) => {
     setBusy(true);
     setMsg('');
     try {
-      await taskService.cambiarEstado(id, nuevo);
+      await taskService.update(id, { estado: nuevoEstado });
       setMsg('Estado actualizado.');
       load();
     } catch (e) {
@@ -100,15 +109,73 @@ export default function TaskDetailScreen({ route }) {
     }
   };
 
-  const openImagePicker = () => setShowImagePicker(true);
+  const pickFotoWeb = async () => {
+    if (typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = async (e) => {
+        const file = e.target?.files?.[0];
+        if (!file) return;
+        setBusy(true);
+        setError('');
+        setMsg('');
+        try {
+          await evidenceService.subirTarea(id, { file, name: file.name, type: file.type });
+          setMsg('Fotografía subida correctamente.');
+          load();
+        } catch (err) {
+          console.error('Error al subir fotografía:', err);
+          setError(onError(err) || err?.message || 'Error al subir la fotografía.');
+        } finally {
+          setBusy(false);
+        }
+      };
+      input.click();
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      setBusy(true);
+      setError('');
+      setMsg('');
+      await evidenceService.subirTarea(id, result.assets[0]);
+      setMsg('Fotografía subida correctamente.');
+      load();
+    } catch (e) {
+      setError(onError(e) || e?.message || 'Error al subir la fotografía.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openImagePicker = () => {
+    if (Platform.OS === 'web') {
+      pickFotoWeb();
+      return;
+    }
+    setShowImagePicker(true);
+  };
 
   const handleImagePicker = async (source) => {
     setShowImagePicker(false);
     setBusy(true);
+    setError('');
     setMsg('');
     try {
       let result;
       if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          setError('Se requiere permiso para acceder a la cámara.');
+          return;
+        }
         result = await ImagePicker.launchCameraAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
           allowsEditing: true,
@@ -123,10 +190,10 @@ export default function TaskDetailScreen({ route }) {
       }
       if (result.canceled || !result.assets?.length) return;
       await evidenceService.subirTarea(id, result.assets[0]);
-      setMsg('Foto subida correctamente.');
+      setMsg('Fotografía subida correctamente.');
       load();
     } catch (e) {
-      setError(onError(e) || '');
+      setError(onError(e) || 'Error al subir la fotografía.');
     } finally {
       setBusy(false);
     }
@@ -137,238 +204,504 @@ export default function TaskDetailScreen({ route }) {
 
   if (!tarea && !error) return <Loading label="Cargando tarea…" />;
 
+  const colorEstado = tarea ? taskEstadoColor[tarea.estado] || colors.textMuted : colors.textMuted;
+  const colorPrio = tarea ? prioridadColor[tarea.prioridad] || colors.primaryLight : colors.primaryLight;
+
   return (
     <Screen>
+      <View style={styles.container}>
+        <View style={styles.intro}>
+          <Text style={styles.overline}>TAREAS / DETALLE</Text>
+          <Text style={styles.introTitle}>{tarea?.titulo || 'Tarea'}</Text>
+          <Text style={styles.introCaption}>
+            {tarea?.habitacion && habLabel(tarea.habitacion) !== '—'
+              ? `Habitación ${habLabel(tarea.habitacion)}`
+              : 'Área General / Áreas comunes'}{' '}
+            · Prioridad {tarea?.prioridad}
+          </Text>
+        </View>
+
       {error ? <ErrorBanner message={error} /> : null}
       {msg ? (
         <View style={styles.okBanner}>
+          <Ionicons name="checkmark-circle" size={18} color={colors.primaryLight} />
           <Text style={styles.okText}>{msg}</Text>
         </View>
       ) : null}
+
       {tarea && (
         <>
-          <Card elevationLevel="level2">
-            <View style={styles.head}>
-              <Text style={styles.titulo}>{tarea.titulo}</Text>
-              <Badge label={estadoLabel(tarea.estado)} color={taskEstadoColor[tarea.estado] || colors.textMuted} />
+          {/* Hero Card */}
+          <Card elevationLevel="level2" style={styles.heroCard}>
+            <View style={styles.heroHead}>
+              <View style={styles.heroIcon}>
+                <Ionicons
+                  name={tarea.habitacion && habLabel(tarea.habitacion) !== '—' ? 'clipboard-outline' : 'business-outline'}
+                  size={28}
+                  color={colors.primary}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.heroLabel}>
+                  {tarea.habitacion && habLabel(tarea.habitacion) !== '—' ? 'HABITACIÓN ASOCIADA' : 'UBICACIÓN'}
+                </Text>
+                <Text style={styles.heroRoom}>
+                  {tarea.habitacion && habLabel(tarea.habitacion) !== '—'
+                    ? `Habitación ${habLabel(tarea.habitacion)}`
+                    : 'Área General (Sin habitación)'}
+                </Text>
+              </View>
+              <Badge label={estadoLabel(tarea.estado)} color={colorEstado} />
             </View>
-            <Row label="Habitación" value={habLabel(tarea.habitacion)} />
-            <Row label="Responsable" value={userLabel(tarea.asignado_a)} />
-            {tarea.asignado_a?.rol_nombre ? (
-              <Row label="Rol responsable" value={tarea.asignado_a.rol_nombre} />
-            ) : null}
-            {tarea.asignado_a?.area_nombre ? (
-              <Row label="Área responsable" value={tarea.asignado_a.area_nombre} />
-            ) : null}
-            <Row label="Prioridad" value={tarea.prioridad} />
-            <Row label="Creada" value={formatFecha(tarea.creada_en)} />
+
+            <View style={styles.infoGrid}>
+              <Row
+                label="Ubicación"
+                value={
+                  tarea.habitacion && habLabel(tarea.habitacion) !== '—'
+                    ? `Habitación ${habLabel(tarea.habitacion)}`
+                    : 'Áreas comunes / Instalaciones generales'
+                }
+              />
+              <Row label="Responsable" value={userLabel(tarea.asignado_a)} />
+              {tarea.asignado_a?.rol_nombre ? (
+                <Row label="Rol responsable" value={tarea.asignado_a.rol_nombre} />
+              ) : null}
+              {tarea.asignado_a?.area_nombre ? (
+                <Row label="Área responsable" value={tarea.asignado_a.area_nombre} />
+              ) : null}
+              <Row label="Prioridad" value={`Prioridad ${tarea.prioridad}`} />
+              <Row label="Fecha creación" value={formatFecha(tarea.creada_en)} />
+            </View>
+
             {tarea.descripcion ? (
-              <Text style={styles.desc}>{tarea.descripcion}</Text>
+              <View style={styles.descBox}>
+                <Text style={styles.descLabel}>Descripción del trabajo</Text>
+                <Text style={styles.descText}>{tarea.descripcion}</Text>
+              </View>
             ) : null}
           </Card>
 
-          <SectionTitle>Cambiar estado</SectionTitle>
-          <View style={styles.chips}>
-            {ESTADOS_TAREA.map((e) => (
+          {/* Cambio de Estado */}
+          <Card elevationLevel="level2" style={styles.estadoCard}>
+            <View style={styles.sectionHeading}>
+              <Ionicons name="swap-horizontal-outline" size={22} color={colors.primary} />
+              <Text style={styles.sectionHeadingTitle}>Cambiar estado de la tarea</Text>
+            </View>
+
+            <View style={styles.estadoBtnGrid}>
+              {ESTADOS_TAREA.map((e) => {
+                const selected = tarea.estado === e;
+                const color = taskEstadoColor[e] || colors.primaryLight;
+                return (
+                  <TouchableOpacity
+                    key={e}
+                    style={[styles.estadoTile, selected && styles.estadoTileActive]}
+                    onPress={() => cambiarEstado(e)}
+                    disabled={busy || selected}
+                  >
+                    <View style={[styles.tileIcon, { backgroundColor: color + '22' }]}>
+                      <Ionicons name={ESTADO_ICONS[e] || 'ellipse'} size={18} color={color} />
+                    </View>
+                    <Text style={styles.tileText}>{estadoLabel(e)}</Text>
+                    {selected ? (
+                      <View style={styles.tileCheck}>
+                        <Ionicons name="checkmark" size={13} color={colors.primary} />
+                        <Text style={styles.tileCheckText}>Actual</Text>
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {esAdmin && tarea.estado !== 'COMPLETADA' && (
               <Button
-                key={e}
-                title={estadoLabel(e)}
-                variant={tarea.estado === e ? 'primary' : 'secondary'}
-                disabled={busy || tarea.estado === e}
-                onPress={() => cambiarEstado(e)}
-                style={styles.estadoBtn}
+                title="Validar y cerrar tarea (Admin)"
+                variant="primary"
+                onPress={validar}
+                loading={busy}
+                disabled={busy}
+                style={{ marginTop: spacing.md }}
               />
-            ))}
-          </View>
+            )}
+          </Card>
 
-          {esAdmin && (
+          {/* Evidencias fotográficas de la tarea */}
+          <Card elevationLevel="level2" style={styles.evCard}>
+            <View style={styles.sectionHeading}>
+              <Ionicons name="camera-outline" size={22} color={colors.primary} />
+              <Text style={styles.sectionHeadingTitle}>Evidencia fotográfica del trabajo</Text>
+            </View>
+
             <Button
-              title="Validar tarea (CU9)"
-              variant="gold"
+              title="Adjuntar fotografía de respaldo"
+              variant="secondary"
+              onPress={openImagePicker}
               loading={busy}
-              disabled={busy || tarea.estado === 'COMPLETADA'}
-              onPress={validar}
-              style={styles.validarBtn}
+              disabled={busy}
+              style={{ marginBottom: 14 }}
             />
-          )}
 
-                    <SectionTitle>Registro fotográfico</SectionTitle>
+            {/* Modal de selección en móvil */}
+            {showImagePicker && (
+              <Modal visible={true} animationType="fade" transparent={true}>
+                <View style={styles.pickerOverlay}>
+                  <View style={styles.pickerContainer}>
+                    <Text style={styles.pickerTitle}>Seleccionar fotografía</Text>
                     <Button
-                      title="Subir foto"
-                      variant="secondary"
-                      onPress={openImagePicker}
+                      title="Tomar fotografía con cámara"
+                      onPress={() => handleImagePicker('camera')}
                       loading={busy}
                       disabled={busy}
+                      style={styles.pickerBtn}
                     />
-                    {showImagePicker && (
-                      <Modal visible={true} animationType="slide" transparent={true}>
-                        <View style={styles.pickerOverlay}>
-                          <View style={styles.pickerContainer}>
-                            <Text style={styles.pickerTitle}>Seleccionar origen</Text>
-                            <Button
-                              title="Cámara"
-                              onPress={() => handleImagePicker('camera')}
-                              loading={busy}
-                              disabled={busy}
-                              style={styles.pickerBtn}
-                            />
-                            <Button
-                              title="Galería"
-                              variant="secondary"
-                              onPress={() => handleImagePicker('library')}
-                              loading={busy}
-                              disabled={busy}
-                              style={styles.pickerBtn}
-                            />
-                            <Button
-                              title="Cancelar"
-                              variant="ghost"
-                              onPress={() => setShowImagePicker(false)}
-                              disabled={busy}
-                              style={styles.pickerBtn}
-                            />
-                          </View>
-                        </View>
-                      </Modal>
-                    )}
-                    <View style={styles.evGrid}>
-                      {evidencias.map((ev) => {
-                        const uri = evidenciaUri(ev);
-                        return (
-                          <View key={ev.id} style={styles.evItem}>
-                            {uri ? (
-                              <TouchableOpacity onPress={() => openFullscreenImage(uri)} activeOpacity={0.8}>
-                                <Image source={{ uri }} style={styles.evImg} />
-                              </TouchableOpacity>
-                            ) : (
-                              <View style={[styles.evImg, styles.evPlaceholder]}>
-                                <Text style={styles.evPlaceholderText}>?</Text>
-                              </View>
-                            )}
-                            <Text style={styles.evLabel}>#{ev.id}</Text>
-                          </View>
-                        );
-                      })}
-                    </View>
+                    <Button
+                      title="Elegir de la galería"
+                      variant="secondary"
+                      onPress={() => handleImagePicker('library')}
+                      loading={busy}
+                      disabled={busy}
+                      style={styles.pickerBtn}
+                    />
+                    <Button
+                      title="Cancelar"
+                      variant="ghost"
+                      onPress={() => setShowImagePicker(false)}
+                      disabled={busy}
+                      style={styles.pickerBtn}
+                    />
+                  </View>
+                </View>
+              </Modal>
+            )}
 
-                    {selectedImageUri && (
-                      <Modal visible={true} animationType="fade" transparent={true}>
-                        <TouchableOpacity style={styles.fullscreenOverlay} onPress={closeFullscreenImage}>
-                          <Image source={{ uri: selectedImageUri }} style={styles.fullscreenImage} resizeMode="contain" />
-                          <TouchableOpacity style={styles.fullscreenClose} onPress={closeFullscreenImage}>
-                            <Text style={{ color: colors.white, fontSize: 24, fontWeight: 'bold' }}>×</Text>
-                          </TouchableOpacity>
+            {evidencias.length === 0 ? (
+              <Text style={styles.emptyText}>No hay fotografías de respaldo adjuntas.</Text>
+            ) : (
+              <View style={styles.evGrid}>
+                {evidencias.map((ev) => {
+                  const uri = evidenciaUri(ev);
+                  return (
+                    <View key={ev.id} style={styles.evItem}>
+                      {uri ? (
+                        <TouchableOpacity onPress={() => openFullscreenImage(uri)} activeOpacity={0.8}>
+                          <Image source={{ uri }} style={styles.evImg} />
                         </TouchableOpacity>
-                      </Modal>
-                    )}
+                      ) : (
+                        <View style={[styles.evImg, styles.evPlaceholder]}>
+                          <Ionicons name="image-outline" size={24} color={colors.textMuted} />
+                        </View>
+                      )}
+                      <Text style={styles.evLabel}>Foto #{ev.id}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </Card>
 
-                    <SectionTitle>Historial</SectionTitle>
-          {historial.length === 0 && (
-            <Text style={styles.empty}>Sin registros de cambios.</Text>
-          )}
-          {historial.map((e, i) => (
-            <View key={i} style={styles.histItem}>
-              <Text style={styles.histText}>{historialLine(e)}</Text>
+          {/* Historial de cambios */}
+          <Card elevationLevel="level2" style={styles.histCard}>
+            <View style={styles.sectionHeading}>
+              <Ionicons name="time-outline" size={22} color={colors.primary} />
+              <Text style={styles.sectionHeadingTitle}>Historial de cambios de estado</Text>
             </View>
-          ))}
+
+            {historial.length === 0 ? (
+              <Text style={styles.emptyText}>Sin registros de cambios.</Text>
+            ) : (
+              historial.map((e, i) => (
+                <View key={i} style={styles.histItem}>
+                  <Ionicons name="git-commit-outline" size={16} color={colors.primaryLight} />
+                  <Text style={styles.histText}>{historialLine(e)}</Text>
+                </View>
+              ))
+            )}
+          </Card>
+
+          {/* Modal pantalla completa para fotos */}
+          {selectedImageUri && (
+            <Modal visible={true} transparent={true} animationType="fade">
+              <TouchableOpacity
+                style={styles.fullscreenOverlay}
+                activeOpacity={1}
+                onPress={closeFullscreenImage}
+              >
+                <View style={styles.fullscreenContainer}>
+                  <Image
+                    source={{ uri: selectedImageUri }}
+                    style={styles.fullscreenImage}
+                    resizeMode="contain"
+                  />
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={closeFullscreenImage}
+                  >
+                    <Text style={styles.closeButtonText}>Cerrar ✕</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </Modal>
+          )}
         </>
       )}
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  head: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
+  container: {
+    width: '100%',
+    maxWidth: 860,
+    alignSelf: 'center',
   },
-  titulo: { fontFamily: fonts.title, fontSize: 22, color: colors.primary, flex: 1 },
-  desc: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: colors.text,
-    marginTop: spacing.sm,
-    lineHeight: 20,
+  intro: { marginBottom: 18 },
+  overline: {
+    fontFamily: fonts.bodyBold,
+    letterSpacing: 2,
+    color: colors.primaryLight,
+    fontSize: 10,
+    marginBottom: 5,
   },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  estadoBtn: { minWidth: 140, flexGrow: 1 },
-  validarBtn: { marginTop: spacing.md },
+  introTitle: { fontFamily: fonts.title, fontSize: 32, color: colors.primary },
+  introCaption: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, marginTop: 3 },
   okBanner: {
-    backgroundColor: `${colors.primaryLight}1E`,
-    borderWidth: 1,
-    borderColor: `${colors.primaryLight}55`,
+    backgroundColor: `${colors.primaryLight}18`,
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.primaryLight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  okText: { color: colors.primary, fontFamily: fonts.body, fontSize: 13 },
-  empty: { fontFamily: fonts.body, color: colors.textMuted },
-  histItem: {
+  okText: { color: colors.primary, fontFamily: fonts.bodyBold, fontSize: 13 },
+  heroCard: {
     backgroundColor: colors.white,
-    borderRadius: radius.md,
-    padding: spacing.sm + 2,
-    marginBottom: spacing.sm,
+    borderRadius: radius.lg,
+    padding: 20,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  histText: { fontFamily: fonts.body, fontSize: 13, color: colors.text },
-  evGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
-  evItem: { alignItems: 'center' },
+  heroHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 16,
+  },
+  heroIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceBrand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroLabel: {
+    fontFamily: fonts.bodyBold,
+    letterSpacing: 1.2,
+    fontSize: 9,
+    color: colors.textMuted,
+  },
+  heroRoom: { fontFamily: fonts.serif, color: colors.primary, fontSize: 22 },
+  infoGrid: { marginTop: 4 },
+  descBox: {
+    backgroundColor: colors.surface,
+    padding: 14,
+    borderRadius: radius.md,
+    marginTop: 14,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primaryLight,
+  },
+  descLabel: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.primary, marginBottom: 4 },
+  descText: { fontFamily: fonts.body, fontSize: 13, color: colors.text, lineHeight: 19 },
+  estadoCard: {
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    padding: 20,
+    marginBottom: spacing.md,
+    borderTopWidth: 3,
+    borderTopColor: colors.primaryLight,
+  },
+  evCard: {
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    padding: 20,
+    marginBottom: spacing.md,
+    borderTopWidth: 3,
+    borderTopColor: colors.primarySoft,
+  },
+  histCard: {
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    padding: 20,
+    marginBottom: spacing.xl,
+    borderTopWidth: 3,
+    borderTopColor: colors.border,
+  },
+  sectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  sectionHeadingTitle: { fontFamily: fonts.serif, fontSize: 18, color: colors.primary },
+  estadoBtnGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  estadoTile: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    minWidth: 150,
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: 12,
+  },
+  estadoTileActive: {
+    borderColor: colors.primaryLight,
+    borderWidth: 2,
+    backgroundColor: '#F3F9FC',
+  },
+  tileIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileText: {
+    flex: 1,
+    fontFamily: fonts.bodyBold,
+    fontSize: 13,
+    color: colors.primary,
+  },
+  tileCheck: {
+    backgroundColor: colors.surfaceBrand,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  tileCheckText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    color: colors.primary,
+  },
+  emptyText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: 14,
+  },
+  evGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 6,
+  },
+  evItem: {
+    width: 100,
+    alignItems: 'center',
+  },
   evImg: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.sm,
+    width: 100,
+    height: 100,
+    borderRadius: radius.md,
     backgroundColor: colors.surface,
   },
   evPlaceholder: {
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.primarySoft,
+    borderColor: colors.border,
   },
-  evPlaceholderText: { color: colors.textMuted, fontFamily: fonts.body },
-  evLabel: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, marginTop: 4 },
+  evLabel: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 4,
+  },
+  histItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.surface,
+    padding: 12,
+    borderRadius: radius.md,
+    marginBottom: 8,
+  },
+  histText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text,
+    flex: 1,
+  },
   pickerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   pickerContainer: {
     backgroundColor: colors.white,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.md,
+    borderRadius: radius.lg,
+    padding: 24,
+    width: '100%',
+    maxWidth: 380,
+    gap: 10,
   },
   pickerTitle: {
     fontFamily: fonts.title,
-    fontSize: 18,
+    fontSize: 20,
     color: colors.primary,
+    marginBottom: 8,
     textAlign: 'center',
-    marginBottom: spacing.sm,
   },
-  pickerBtn: {
-    marginHorizontal: 0,
-  },
+  pickerBtn: { width: '100%' },
   fullscreenOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.95)',
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenContainer: {
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
   fullscreenImage: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_WIDTH * 1.5,
-    maxHeight: Dimensions.get('window').height * 0.9,
+    width: SCREEN_WIDTH * 0.92,
+    height: '80%',
   },
-  fullscreenClose: {
+  closeButton: {
     position: 'absolute',
-    top: 50,
+    top: 40,
     right: 20,
-    zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
-    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+  },
+  closeButtonText: {
+    color: colors.white,
+    fontFamily: fonts.bodyBold,
+    fontSize: 14,
   },
 });

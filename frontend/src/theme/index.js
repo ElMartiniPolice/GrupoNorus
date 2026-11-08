@@ -11,12 +11,15 @@ export const colors = {
   primaryLight: '#328CC1', // Azul medio — acentos, acciones, éxito
   primarySoft: '#B3CDE0', // Azul claro — badges, fondos suaves
   white: '#FFFFFF',
-  surface: '#ECECEC', // Gris claro — fondo de pantallas
+  surface: '#F1F6FA', // Azul grisáceo de interfaz: derivación clara de la paleta
+  surfaceAlt: '#E8F1F7', // Paneles suaves de apoyo
+  surfaceBrand: '#E0EDF5', // Fondo azul pastel para resúmenes
+  neutral: '#ECECEC', // Gris oficial del manual
   gold: '#FFC858', // Dorado — destacados, advertencias, pendiente
   coral: '#F25F5C', // Rojo coral — errores, crítico
   text: '#0B3C5D',
   textMuted: '#6B7A87',
-  border: '#ECECEC',
+  border: '#DBE6EE',
   overlay: 'rgba(11, 60, 93, 0.55)',
 };
 
@@ -31,7 +34,7 @@ export const fonts = {
 
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 
-export const radius = { sm: 8, md: 12, lg: 20, pill: 999 };
+export const radius = { sm: 8, md: 12, lg: 18, pill: 999 };
 
 /** Colores por severidad / prioridad (SLA del informe). */
 export const severityColor = {

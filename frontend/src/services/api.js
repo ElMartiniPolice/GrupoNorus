@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../config';
 
@@ -34,13 +35,26 @@ export const storage = {
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15000,
-  headers: { 'Content-Type': 'application/json' },
 });
 
-// --- JWT: adjunta el access token a cada petición -------------------------
+// --- JWT: adjunta el access token y gestiona multipart ---------------------
 api.interceptors.request.use(async (config) => {
   const { access } = await storage.getTokens();
   if (access) config.headers.Authorization = `Bearer ${access}`;
+
+  // Si enviamos FormData, en Web el navegador calcula el boundary; en móvil usamos multipart/form-data
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    if (Platform.OS === 'web') {
+      if (config.headers?.delete) {
+        config.headers.delete('Content-Type');
+      } else if (config.headers) {
+        delete config.headers['Content-Type'];
+      }
+    } else {
+      config.headers['Content-Type'] = 'multipart/form-data';
+    }
+  }
+
   return config;
 });
 

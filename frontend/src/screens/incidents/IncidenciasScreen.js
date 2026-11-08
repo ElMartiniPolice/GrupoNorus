@@ -1,27 +1,25 @@
 /**
- * IncidenciasScreen — CU8: Listado de incidencias reportadas.
- * Severidades masculinas: CRITICO / ALTO / MEDIO / BAJO (severityColor).
+ * IncidenciasScreen — CU8: Listado de incidencias reportadas con diseño moderno NORUS.
+ * Severidades: CRITICO / ALTO / MEDIO / BAJO (severityColor).
  */
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Animated } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View, TextInput, useWindowDimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { incidentService, SEVERIDADES } from '../../services/incidentService';
 import { colors, fonts, spacing, radius, severityColor } from '../../theme';
 import {
   Badge,
-  Card,
   EmptyState,
   ErrorBanner,
   Loading,
   Screen,
-  SectionTitle,
   formatFecha,
   makeErrorHandler,
 } from '../../components/ui';
 import { habLabel, estadoLabel } from '../../utils/labels';
 import { slaText } from '../../utils/sla';
-import { useStaggeredAnimation, staggeredEntranceStyle } from '../../utils/animations';
 
 export function estadoInc(inc) {
   if (inc.estado) return inc.estado;
@@ -30,12 +28,22 @@ export function estadoInc(inc) {
   return 'REPORTADA';
 }
 
+const SEVERITY_TILES = [
+  { id: 'TODAS', text: 'Todas', icon: 'list-outline' },
+  { id: 'CRITICO', text: 'Críticas', icon: 'alert-circle-outline' },
+  { id: 'ALTO', text: 'Altas', icon: 'warning-outline' },
+  { id: 'MEDIO', text: 'Medias', icon: 'information-circle-outline' },
+  { id: 'BAJO', text: 'Bajas', icon: 'checkmark-circle-outline' },
+];
+
 export default function IncidenciasScreen({ navigation }) {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const { width } = useWindowDimensions();
   const [incidencias, setIncidencias] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [severidad, setSeveridad] = useState('TODAS');
+  const [search, setSearch] = useState('');
   const onError = useCallback(makeErrorHandler(logout), [logout]);
 
   const load = useCallback(
@@ -56,80 +64,188 @@ export default function IncidenciasScreen({ navigation }) {
     [onError],
   );
 
-  // Refresco silencioso al volver al foco (p. ej. tras reportar una incidencia).
+  useEffect(() => {
+    load();
+  }, [load]);
+
   useFocusEffect(
     useCallback(() => {
       load(true);
     }, [load]),
   );
 
-  // Memoize filtered incidents to avoid re-filtering on every render
-    const filteredIncidencias = useMemo(
-      () => {
-        if (!incidencias) return [];
-        if (severidad === 'TODAS') return incidencias;
-        return incidencias.filter((i) => i.severidad === severidad);
-      },
-      [incidencias, severidad],
-  );
+  const counts = useMemo(() => {
+    const tally = { TODAS: incidencias?.length || 0 };
+    SEVERITY_TILES.slice(1).forEach((s) => {
+      tally[s.id] = (incidencias || []).filter((i) => i.severidad === s.id).length;
+    });
+    return tally;
+  }, [incidencias]);
 
-    // Staggered entrance animations
-    const cardAnims = useMemo(
-      () => useStaggeredAnimation(filteredIncidencias.length, 60, 300),
-      [filteredIncidencias.length]
-    );
+  const filtered = useMemo(() => {
+    return (incidencias || []).filter((i) => {
+      const matchSev = severidad === 'TODAS' || i.severidad === severidad;
+      const term = search.trim().toLowerCase();
+      const matchSearch =
+        !term ||
+        String(i.titulo || '').toLowerCase().includes(term) ||
+        String(habLabel(i.habitacion)).toLowerCase().includes(term);
+      return matchSev && matchSearch;
+    });
+  }, [incidencias, severidad, search]);
+
+  const cardWidth = width >= 1180 ? '31.8%' : width >= 720 ? '48.7%' : '100%';
 
   return (
     <View style={styles.wrap}>
       <Screen refreshing={refreshing} onRefresh={() => load(true)}>
-        <SectionTitle>Incidencias</SectionTitle>
-        <View style={styles.chips}>
-          {['TODAS', ...SEVERIDADES].map((s) => (
-            <TouchableOpacity
-              key={s}
-              style={[styles.chip, severidad === s && styles.chipActive]}
-              onPress={() => setSeveridad(s)}
-            >
-              <Text style={[styles.chipText, severidad === s && styles.chipTextActive]}>
-                {s === 'TODAS' ? 'Todas' : s}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* Header Hero */}
+        <View style={styles.titleRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.overline}>GESTIÓN OPERATIVA</Text>
+            <Text style={styles.title}>Incidencias</Text>
+            <Text style={styles.description}>
+              Reporte, seguimiento y resolución de incidencias en habitaciones.
+            </Text>
+          </View>
+          <View style={styles.totalPill}>
+            <Ionicons name="alert-circle-outline" size={17} color={colors.primary} />
+            <Text style={styles.totalText}>{counts.TODAS} registradas</Text>
+          </View>
         </View>
+
         {error ? <ErrorBanner message={error} /> : null}
-        {!incidencias && !error && <Loading label="Cargando incidencias…" />}
-        {incidencias && filteredIncidencias.length === 0 && !error && (
-          <EmptyState message="No hay incidencias para mostrar." />
-        )}
-                {filteredIncidencias.map((i, index) => (
-          <Animated.View
-            key={i.id}
-            style={staggeredEntranceStyle(cardAnims[index], 16)}
-          >
-            <Card
-              elevationLevel="level1"
-              key={i.id}
-              onPress={() => navigation.navigate('IncidentDetail', { id: i.id })}
-            >
-              <View style={styles.cardHead}>
-                <Text style={styles.titulo}>{i.titulo}</Text>
-                <Badge label={i.severidad} color={severityColor[i.severidad] || colors.textMuted} />
-              </View>
-              <Text style={styles.meta}>
-                Habitación: {habLabel(i.habitacion)} · {formatFecha(i.creada_en)}
-              </Text>
-              <View style={styles.cardFoot}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                  <Badge label={estadoLabel(estadoInc(i))} color={colors.primaryLight} />
-                  {slaText(i.severidad) ? (
-                    <Text style={styles.sla}>{slaText(i.severidad)}</Text>
-                  ) : null}
+
+        {/* Severity Tiles */}
+        <View style={styles.countsRow}>
+          {SEVERITY_TILES.slice(1).map((s) => {
+            const color = severityColor[s.id] || colors.primaryLight;
+            const isSelected = severidad === s.id;
+            return (
+              <TouchableOpacity
+                key={s.id}
+                onPress={() => setSeveridad(isSelected ? 'TODAS' : s.id)}
+                style={[styles.statusTile, isSelected && styles.selectedTile]}
+              >
+                <View style={[styles.statusIcon, { backgroundColor: color + '1F' }]}>
+                  <Ionicons name={s.icon} color={color} size={18} />
                 </View>
-              </View>
-            </Card>
-          </Animated.View>
-        ))}
+                <Text style={styles.statusNumber}>{counts[s.id]}</Text>
+                <Text style={styles.statusLabel}>{s.text}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Search & Filters */}
+        <View style={styles.filtersPanel}>
+          <View style={styles.searchBox}>
+            <Ionicons name="search-outline" size={18} color={colors.textMuted} />
+            <TextInput
+              placeholder="Buscar por título o número de habitación…"
+              placeholderTextColor={colors.textMuted}
+              value={search}
+              onChangeText={setSearch}
+              style={styles.searchInput}
+            />
+            {search ? (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Ionicons name="close-circle" size={17} color={colors.textMuted} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          <View style={styles.filters}>
+            {SEVERITY_TILES.map((s) => (
+              <TouchableOpacity
+                key={s.id}
+                onPress={() => setSeveridad(s.id)}
+                style={[styles.chip, severidad === s.id && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, severidad === s.id && styles.chipTextActive]}>
+                  {s.text}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {!incidencias && !error && <Loading label="Cargando incidencias…" />}
+
+        {incidencias && filtered.length === 0 && !error && (
+          <EmptyState message="No hay incidencias que coincidan con la búsqueda." />
+        )}
+
+        {/* Grid de Incidencias */}
+        <View style={styles.grid}>
+          {filtered.map((inc) => {
+            const estado = estadoInc(inc);
+            const colorSev = severityColor[inc.severidad] || colors.textMuted;
+            const sla = slaText(inc.severidad);
+            return (
+              <TouchableOpacity
+                key={inc.id}
+                style={[styles.incCard, { width: cardWidth }]}
+                onPress={() => navigation.navigate('IncidenciaDetail', { id: inc.id })}
+                activeOpacity={0.88}
+              >
+                <View style={[styles.cardStrip, { backgroundColor: colorSev }]} />
+                <View style={styles.cardInner}>
+                  <View style={styles.cardHead}>
+                    <View style={styles.roomBadgeWrap}>
+                      <Ionicons
+                        name={inc.habitacion ? 'bed-outline' : 'business-outline'}
+                        size={16}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.roomBadgeText}>
+                        {inc.habitacion && habLabel(inc.habitacion) !== '—'
+                          ? `Hab. ${habLabel(inc.habitacion)}`
+                          : 'Área General'}
+                      </Text>
+                    </View>
+                    <Badge label={inc.severidad} color={colorSev} />
+                  </View>
+
+                  <Text style={styles.cardTitulo} numberOfLines={2}>
+                    {inc.titulo}
+                  </Text>
+
+                  {sla ? (
+                    <View style={styles.slaWrap}>
+                      <Ionicons name="time-outline" size={13} color={colors.textMuted} />
+                      <Text style={styles.slaText}>{sla}</Text>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.divider} />
+
+                  <View style={styles.cardFoot}>
+                    <View style={styles.reporterInfo}>
+                      <Text style={styles.reporterName} numberOfLines={1}>
+                        👤 {inc.reportada_por?.nombre || inc.reportado_por?.nombre || 'Personal'}
+                      </Text>
+                      {(inc.reportada_por?.rol_nombre || inc.reportada_por?.area_nombre) ? (
+                        <View style={styles.rolPill}>
+                          <Text style={styles.rolPillText}>
+                            {[inc.reportada_por.rol_nombre, inc.reportada_por.area_nombre].filter(Boolean).join(' · ')}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Badge
+                      label={estadoLabel(estado)}
+                      color={estado === 'RESUELTA' ? colors.primary : estado === 'ATENDIDA' ? colors.primaryLight : colors.gold}
+                    />
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </Screen>
+
+      {/* FAB para reportar nueva incidencia */}
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('CreateIncident')}
@@ -142,35 +258,155 @@ export default function IncidenciasScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  chip: {
+  wrap: { flex: 1, backgroundColor: colors.surface },
+  titleRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 15,
+    marginBottom: 20,
+  },
+  overline: {
+    color: colors.primaryLight,
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 1.7,
+    marginBottom: 5,
+  },
+  title: { color: colors.primary, fontFamily: fonts.title, fontSize: 32 },
+  description: { color: colors.textMuted, fontFamily: fonts.body, fontSize: 13, marginTop: 3 },
+  totalPill: {
+    backgroundColor: colors.surfaceBrand,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.primarySoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  totalText: { color: colors.primary, fontFamily: fonts.bodyBold, fontSize: 12 },
+  countsRow: { flexDirection: 'row', gap: '1.5%', rowGap: 10, flexWrap: 'wrap', marginBottom: 18 },
+  statusTile: {
     backgroundColor: colors.white,
+    minWidth: 130,
+    flexBasis: '23.5%',
+    flexGrow: 1,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: 14,
+    minHeight: 105,
+  },
+  selectedTile: { borderColor: colors.primaryLight, borderWidth: 2, backgroundColor: '#F4F9FC' },
+  statusIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusNumber: { fontFamily: fonts.bodyBold, fontSize: 22, color: colors.primary },
+  statusLabel: { fontFamily: fonts.body, color: colors.textMuted, fontSize: 12, marginTop: 2 },
+  filtersPanel: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: 14,
+    marginBottom: 18,
+    gap: 12,
+  },
+  searchBox: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    minHeight: 42,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.primary,
+    paddingVertical: 6,
+  },
+  filters: { flexDirection: 'row', gap: 7, flexWrap: 'wrap' },
+  chip: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.primary },
+  chipText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.primary },
   chipTextActive: { color: colors.white },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: '2%', rowGap: 14 },
+  incCard: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    minWidth: 240,
+    flexGrow: 1,
+  },
+  cardStrip: { height: 4 },
+  cardInner: { padding: 16 },
   cardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  roomBadgeWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.surfaceBrand,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  roomBadgeText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.primary },
+  cardTitulo: {
+    fontFamily: fonts.serif,
+    fontSize: 17,
+    color: colors.primary,
+    lineHeight: 22,
+    marginBottom: 6,
+  },
+  slaWrap: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
+  slaText: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 12 },
+  cardFoot: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
-    gap: spacing.sm,
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  titulo: { fontFamily: fonts.serif, fontSize: 17, color: colors.primary, flex: 1 },
-  meta: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, marginBottom: 6 },
-  cardFoot: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: spacing.sm,
+  reporterInfo: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 },
+  reporterName: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.text },
+  rolPill: {
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
   },
-  sla: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted },
+  rolPillText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
+    color: colors.primary,
+    textTransform: 'uppercase',
+  },
   fab: {
     position: 'absolute',
     bottom: 24,
