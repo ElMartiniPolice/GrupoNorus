@@ -76,7 +76,7 @@ export default function RoomDetailScreen({ route }) {
   const { id } = route.params;
   const { user, logout } = useAuth();
   const esAdmin = user?.rol_nombre === 'ADMINISTRADOR';
-  const esRecepcion = user?.rol_nombre === 'RECEPCION';
+  const esRecepcion = user?.rol_nombre === 'RECEPCION' || user?.rol_nombre === 'SUPERVISOR';
   const esOperario = user?.rol_nombre === 'OPERARIO';
   const puedeGestionar = esAdmin || esRecepcion;
   const puedeCambiarEstado = puedeGestionar || esOperario;
@@ -321,6 +321,15 @@ export default function RoomDetailScreen({ route }) {
             <Text style={styles.heroLabel}>ESTADO ACTUAL</Text>
             <Badge label={ESTADO_TEXTO[room.estado] || room.estado || '—'} color={roomEstadoColor[room.estado] || colors.textMuted} />
           </View>
+        </Card>
+
+        <Card elevationLevel="level1" style={styles.assignmentCard}>
+          <Row
+            label="Housekeeping asignada"
+            value={room.asignada_a
+              ? `${room.asignada_a.nombre || ''} ${room.asignada_a.apellido || ''}`.trim()
+              : 'Sin asignar'}
+          />
         </Card>
 
         {activa && puedeGestionar ? (

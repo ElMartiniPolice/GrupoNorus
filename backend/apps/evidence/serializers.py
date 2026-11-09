@@ -12,10 +12,12 @@ from rest_framework import serializers
 from apps.core.fields import NestedPKRelatedField
 from apps.incidents.models import Incidencia
 from apps.incidents.serializers import IncidenciaMiniSerializer
+from apps.rooms.models import Habitacion
+from apps.rooms.serializers import HabitacionMiniSerializer
 from apps.tasks.models import AsignacionTarea
 from apps.users.serializers import UsuarioMiniSerializer
 
-from .models import EvidenciaFotografica
+from .models import EvidenciaFotografica, ObjetoEncontrado
 
 
 class AsignacionTareaMiniSerializer(serializers.ModelSerializer):
@@ -55,3 +57,27 @@ class EvidenciaFotograficaSerializer(serializers.ModelSerializer):
                 'Debe asociar la evidencia a una incidencia o a una tarea.'
             )
         return attrs
+
+
+class ObjetoEncontradoSerializer(serializers.ModelSerializer):
+    encontrado_por = UsuarioMiniSerializer(read_only=True)
+    habitacion = NestedPKRelatedField(
+        queryset=Habitacion.objects.all(),
+        serializer_class=HabitacionMiniSerializer,
+        required=True,
+        allow_null=True,
+    )
+    ubicacion = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = ObjetoEncontrado
+        fields = [
+            'id', 'nombre', 'descripcion', 'ubicacion', 'habitacion', 'imagen',
+            'encontrado_por', 'creado_en',
+        ]
+        read_only_fields = ['encontrado_por', 'creado_en']
+
+    def validate_habitacion(self, value):
+        if value is None:
+            raise serializers.ValidationError('Seleccione la habitación donde se encontró el objeto.')
+        return value

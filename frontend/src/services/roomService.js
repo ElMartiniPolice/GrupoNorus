@@ -12,6 +12,10 @@ export const roomService = {
     const { data } = await api.get('/rooms/habitaciones/', { params });
     return data.results ?? data;
   },
+  async catalogoObjetosPerdidos() {
+    const { data } = await api.get('/rooms/habitaciones/catalogo-objetos-perdidos/');
+    return data.results ?? data;
+  },
   async get(id) {
     const { data } = await api.get(`/rooms/habitaciones/${id}/`);
     return data;

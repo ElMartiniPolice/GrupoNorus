@@ -8,6 +8,7 @@ Contrato de API (según las pantallas del frontend):
 from rest_framework import serializers
 
 from apps.core.fields import NestedPKRelatedField
+from apps.users.models import Usuario
 from apps.users.serializers import UsuarioMiniSerializer
 from .models import (
     CambioEstadoHabitacion,
@@ -37,11 +38,24 @@ class HabitacionSerializer(serializers.ModelSerializer):
         queryset=TipoHabitacion.objects.all(),
         serializer_class=TipoHabitacionSerializer,
     )
+    asignada_a = NestedPKRelatedField(
+        queryset=Usuario.objects.filter(
+            is_active=True,
+            rol__nombre='OPERARIO',
+            area__nombre__iexact='HOUSEKEEPING',
+        ),
+        serializer_class=UsuarioMiniSerializer,
+        required=False,
+        allow_null=True,
+    )
     items_faltantes_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Habitacion
-        fields = ['id', 'numero', 'tipo', 'estado', 'items_faltantes_count']
+        fields = [
+            'id', 'numero', 'tipo', 'estado', 'asignada_a',
+            'items_faltantes_count',
+        ]
 
     def get_items_faltantes_count(self, obj):
         return obj.inventario.filter(estado__in=['SOLICITADO', 'FALTANTE']).count()

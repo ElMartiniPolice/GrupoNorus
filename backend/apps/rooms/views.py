@@ -14,7 +14,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.core.permissions import IsAdminOrRecepcion, is_operario
+from apps.core.permissions import IsAdmin, IsAdminOrRecepcion, IsAdminOrSupervisor, is_operario
 from apps.notifications.services import notificar
 from apps.users.models import Usuario
 from .models import (
@@ -27,6 +27,7 @@ from .models import (
 )
 from .serializers import (
     CambioEstadoHabitacionSerializer,
+    HabitacionMiniSerializer,
     HabitacionSerializer,
     ItemInventarioSerializer,
     RegistroEstadiaSerializer,
@@ -62,7 +63,22 @@ class HabitacionViewSet(viewsets.ModelViewSet):
             qs = qs.filter(pk__in=habitaciones_del_operario(self.request.user))
         return qs
 
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='catalogo-objetos-perdidos',
+        permission_classes=[IsAuthenticated],
+    )
+    def catalogo_objetos_perdidos(self, request):
+        """Catálogo mínimo para registrar hallazgos desde cualquier rol."""
+        habitaciones = Habitacion.objects.order_by('numero')
+        return Response(HabitacionMiniSerializer(habitaciones, many=True).data)
+
     def get_permissions(self):
+        if self.action == 'create':
+            return [IsAdmin()]
+        if self.action in ('update', 'partial_update') and 'asignada_a' in self.request.data:
+            return [IsAdminOrSupervisor()]
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
             return [IsAdminOrRecepcion()]
         return [IsAuthenticated()]

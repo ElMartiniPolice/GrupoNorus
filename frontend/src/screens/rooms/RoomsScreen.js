@@ -5,8 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { roomService } from '../../services/roomService';
+import { userService } from '../../services/userService';
 import { colors, fonts, spacing, radius, roomEstadoColor } from '../../theme';
-import { Badge, Card, EmptyState, ErrorBanner, Loading, Screen, makeErrorHandler } from '../../components/ui';
+import { Badge, Button, Card, ChipSelect, EmptyState, ErrorBanner, Input, Loading, Screen, makeErrorHandler } from '../../components/ui';
 import { habLabel } from '../../utils/labels';
 
 const STATES = [
@@ -21,9 +22,19 @@ const tipoLabel = (tipo) => typeof tipo === 'object' ? (tipo?.nombre || '—') :
 export default function RoomsScreen({ navigation }) {
   const { logout, user } = useAuth();
   const { width } = useWindowDimensions();
+  const esAdmin = user?.rol_nombre === 'ADMINISTRADOR';
+  const puedeAsignar = esAdmin || user?.rol_nombre === 'SUPERVISOR';
   const [rooms, setRooms] = useState(null);
+  const [tipos, setTipos] = useState([]);
+  const [housekeepers, setHousekeepers] = useState([]);
   const [estado, setEstado] = useState('TODAS');
   const [search, setSearch] = useState('');
+  const [crearAbierto, setCrearAbierto] = useState(false);
+  const [numeroNuevo, setNumeroNuevo] = useState('');
+  const [tipoNuevo, setTipoNuevo] = useState(null);
+  const [asignandoId, setAsignandoId] = useState(null);
+  const [responsableNuevo, setResponsableNuevo] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const onError = useCallback(makeErrorHandler(logout), [logout]);
@@ -32,12 +43,24 @@ export default function RoomsScreen({ navigation }) {
     if (!silent) setRooms(null);
     setRefreshing(true);
     try {
-      const data = await roomService.list();
+      const [data, tiposData, usuariosData] = await Promise.all([
+        roomService.list(),
+        roomService.tipos(),
+        puedeAsignar ? userService.list() : Promise.resolve([]),
+      ]);
       setRooms(Array.isArray(data) ? data : []);
+      setTipos(Array.isArray(tiposData) ? tiposData : []);
+      setHousekeepers(
+        (Array.isArray(usuariosData) ? usuariosData : []).filter(
+          (item) => item.is_active !== false
+            && item.rol_nombre === 'OPERARIO'
+            && String(item.area_nombre || '').trim().toUpperCase() === 'HOUSEKEEPING',
+        ),
+      );
       setError('');
     } catch (e) { const m = onError(e); if (m) setError(m); }
     finally { setRefreshing(false); }
-  }, [onError]);
+  }, [onError, puedeAsignar]);
   useEffect(() => { load(); }, [load]);
   useFocusEffect(useCallback(() => { load(true); }, [load]));
 
@@ -54,6 +77,35 @@ export default function RoomsScreen({ navigation }) {
   }), [rooms, estado, search]);
 
   const gridWidth = width >= 1180 ? '31.8%' : width >= 710 ? '48.7%' : '100%';
+
+  const crearHabitacion = async () => {
+    setError('');
+    if (!numeroNuevo.trim()) return setError('Ingrese el número de habitación.');
+    if (!tipoNuevo) return setError('Seleccione el tipo de habitación.');
+    setSaving(true);
+    try {
+      await roomService.create({ numero: numeroNuevo.trim(), tipo: tipoNuevo });
+      setNumeroNuevo('');
+      setTipoNuevo(null);
+      setCrearAbierto(false);
+      await load(true);
+    } catch (e) { const m = onError(e); if (m) setError(m); }
+    finally { setSaving(false); }
+  };
+
+  const asignarHabitacion = async (roomId) => {
+    setError('');
+    if (!responsableNuevo) return setError('Seleccione una mucama responsable.');
+    setSaving(true);
+    try {
+      await roomService.update(roomId, { asignada_a: responsableNuevo });
+      setAsignandoId(null);
+      setResponsableNuevo(null);
+      await load(true);
+    } catch (e) { const m = onError(e); if (m) setError(m); }
+    finally { setSaving(false); }
+  };
+
   return (
     <Screen refreshing={refreshing} onRefresh={() => load(true)}>
       <View style={styles.titleRow}>
@@ -63,9 +115,27 @@ export default function RoomsScreen({ navigation }) {
           <Text style={styles.description}>Consulta disponibilidad, inventario y cambios de estado.</Text>
         </View>
         <View style={styles.totalPill}><Ionicons name="bed-outline" size={17} color={colors.primary} /><Text style={styles.totalText}>{counts.TODAS} habitaciones</Text></View>
+        {esAdmin ? (
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => setCrearAbierto((open) => !open)}
+            accessibilityRole="button"
+            accessibilityLabel="Crear habitación"
+          >
+            <Ionicons name={crearAbierto ? 'close' : 'add'} size={21} color={colors.white} />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {error ? <ErrorBanner message={error} /> : null}
+      {crearAbierto ? (
+        <Card elevationLevel="level2" style={styles.formCard}>
+          <Text style={styles.formTitle}>Nueva habitación</Text>
+          <Input label="Número de habitación" placeholder="Ej: 204" value={numeroNuevo} onChangeText={setNumeroNuevo} maxLength={10} />
+          <ChipSelect label="Tipo de habitación" options={tipos} value={tipoNuevo} onChange={setTipoNuevo} keyBy="id" labelKey="nombre" />
+          <Button title="Crear habitación" onPress={crearHabitacion} loading={saving} disabled={saving} />
+        </Card>
+      ) : null}
       <View style={styles.countsRow}>
         {STATES.slice(1).map((s) => (
           <TouchableOpacity key={s.id} accessibilityRole="button" onPress={() => setEstado(estado === s.id ? 'TODAS' : s.id)} style={[styles.statusTile, estado === s.id && styles.selectedTile]}>
@@ -98,7 +168,7 @@ export default function RoomsScreen({ navigation }) {
           const color = roomEstadoColor[r.estado] || colors.primaryLight;
           const stateMeta = STATES.find(s => s.id === r.estado);
           return (
-            <TouchableOpacity key={r.id} style={[styles.roomCard, { width: gridWidth }]} activeOpacity={0.75} accessibilityRole="button" onPress={() => navigation.navigate('RoomDetail', { id: r.id })}>
+            <View key={r.id} style={[styles.roomCard, { width: gridWidth }]}>
               <View style={[styles.roomStrip, { backgroundColor: color }]} />
               <View style={styles.roomInner}>
                 <View style={styles.roomHeader}>
@@ -107,15 +177,50 @@ export default function RoomsScreen({ navigation }) {
                 </View>
                 <Text style={styles.roomName}>Habitación {habLabel(r)}</Text>
                 <Text style={styles.roomType}>{tipoLabel(r.tipo)}</Text>
+                <Text style={styles.assigneeText}>
+                  Responsable: {r.asignada_a ? `${r.asignada_a.nombre} ${r.asignada_a.apellido || ''}`.trim() : 'Sin asignar'}
+                </Text>
                 <View style={styles.divider} />
                 <View style={styles.roomBottom}>
                   <View style={styles.roomInventory}><Ionicons name={r.items_faltantes_count > 0 ? 'alert-circle-outline' : 'checkmark-circle-outline'} size={16} color={r.items_faltantes_count > 0 ? colors.coral : colors.primaryLight} />
                     <Text style={styles.inventoryText}>{r.items_faltantes_count > 0 ? `${r.items_faltantes_count} faltante(s)` : 'Inventario OK'}</Text>
                   </View>
-                  <View style={styles.openAction}><Text style={styles.openText}>Ver detalle</Text><Ionicons name="arrow-forward" size={15} color={colors.primaryLight} /></View>
+                  <View style={styles.roomActions}>
+                    <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('RoomDetail', { id: r.id })} accessibilityRole="button">
+                      <Text style={styles.openText}>Ver detalle</Text><Ionicons name="arrow-forward" size={15} color={colors.primaryLight} />
+                    </TouchableOpacity>
+                    {puedeAsignar ? (
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => {
+                          setAsignandoId(asignandoId === r.id ? null : r.id);
+                          setResponsableNuevo(r.asignada_a?.id || null);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Asignar housekeeping a habitación ${r.numero}`}
+                      >
+                        <Ionicons name="people-outline" size={16} color={colors.primaryLight} />
+                        <Text style={styles.openText}>Asignar</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
                 </View>
+                {asignandoId === r.id ? (
+                  <View style={styles.assignPanel}>
+                    <ChipSelect
+                      label="Mucama encargada"
+                      options={housekeepers}
+                      value={responsableNuevo}
+                      onChange={setResponsableNuevo}
+                      keyBy="id"
+                      labelKey="nombre"
+                    />
+                    {housekeepers.length === 0 ? <Text style={styles.noStaff}>No hay personal activo de housekeeping.</Text> : null}
+                    <Button title="Guardar asignación" onPress={() => asignarHabitacion(r.id)} loading={saving} disabled={saving || housekeepers.length === 0} />
+                  </View>
+                ) : null}
               </View>
-            </TouchableOpacity>
+            </View>
           );
         })}
       </View>
@@ -130,6 +235,9 @@ const styles = StyleSheet.create({
   description: { color: colors.textMuted, fontFamily: fonts.body, fontSize: 13, marginTop: 4 },
   totalPill: { backgroundColor: colors.surfaceBrand, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', gap: 8 },
   totalText: { color: colors.primary, fontFamily: fonts.bodyBold, fontSize: 12 },
+  addButton: { width: 42, height: 42, borderRadius: 8, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  formCard: { marginBottom: 20, padding: 18, gap: 10 },
+  formTitle: { fontFamily: fonts.titleAlt, fontSize: 21, color: colors.primary },
   countsRow: { flexDirection: 'row', gap: '1.5%', rowGap: 10, flexWrap: 'wrap', marginBottom: 20 },
   statusTile: { backgroundColor: colors.white, minWidth: 140, flexBasis: '23.8%', flexGrow: 1, borderColor: colors.border, borderWidth: 1, borderRadius: radius.lg, padding: 16, minHeight: 115 },
   selectedTile: { borderColor: colors.primaryLight, borderWidth: 2, backgroundColor: '#F4F9FC' },
@@ -153,10 +261,14 @@ const styles = StyleSheet.create({
   roomIcon: { width: 39, height: 39, borderRadius: 12, backgroundColor: colors.surfaceBrand, alignItems: 'center', justifyContent: 'center' },
   roomName: { fontFamily: fonts.serif, fontSize: 22, color: colors.primary },
   roomType: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, marginTop: 4 },
+  assigneeText: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted, marginTop: 8 },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 16 },
   roomBottom: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   roomInventory: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   inventoryText: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted },
-  openAction: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  roomActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
+  actionButton: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 5 },
+  assignPanel: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border, gap: 8 },
+  noStaff: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted },
   openText: { fontFamily: fonts.bodyBold, color: colors.primaryLight, fontSize: 12 },
 });

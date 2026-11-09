@@ -31,6 +31,7 @@ import IncidenciaDetailScreen from '../screens/incidents/IncidenciaDetailScreen'
 import CreateIncidentScreen from '../screens/incidents/CreateIncidentScreen';
 import RoomsScreen from '../screens/rooms/RoomsScreen';
 import RoomDetailScreen from '../screens/rooms/RoomDetailScreen';
+import ObjetosPerdidosScreen from '../screens/rooms/ObjetosPerdidosScreen';
 import AlertasScreen from '../screens/alertas/AlertasScreen';
 import UsuariosScreen from '../screens/admin/UsuariosScreen';
 import UsuarioFormScreen from '../screens/admin/UsuarioFormScreen';
@@ -46,6 +47,7 @@ const TAB_ICONS = {
   Tareas: 'clipboard',
   Incidencias: 'alert',
   Habitaciones: 'bed',
+  'Objetos perdidos': 'cube',
   Alertas: 'notifications',
   Usuarios: 'people',
   Perfil: 'person',
@@ -58,18 +60,18 @@ const TAB_SCREENS = {
   Incidencias: IncidenciasScreen,
   Alertas: AlertasScreen,
   Usuarios: UsuariosScreen,
+  'Objetos perdidos': ObjetosPerdidosScreen,
   Perfil: PerfilScreen,
 };
 
 function tabsForRole(rol) {
   if (rol === 'ADMINISTRADOR') {
-    return ['Panel', 'Tareas', 'Habitaciones', 'Incidencias', 'Alertas', 'Usuarios', 'Perfil'];
+    return ['Panel', 'Tareas', 'Habitaciones', 'Incidencias', 'Objetos perdidos', 'Alertas', 'Usuarios', 'Perfil'];
   }
-  if (rol === 'RECEPCION') {
-    return ['Tareas', 'Habitaciones', 'Incidencias', 'Alertas', 'Perfil'];
+  if (rol === 'RECEPCION' || rol === 'SUPERVISOR') {
+    return ['Tareas', 'Habitaciones', 'Incidencias', 'Objetos perdidos', 'Alertas', 'Perfil'];
   }
-  // CP-DP-02 — OPERARIO: acceso a tareas, incidencias, alertas y habitaciones
-  return ['Tareas', 'Incidencias', 'Alertas', 'Habitaciones', 'Perfil'];
+  return ['Tareas', 'Incidencias', 'Objetos perdidos', 'Alertas', 'Habitaciones', 'Perfil'];
 }
 
 function TabIcon({ icon, color, badge }) {
@@ -79,6 +81,7 @@ function TabIcon({ icon, color, badge }) {
     clipboard: 'clipboard',
     alert: 'alert',
     bed: 'bed',
+    cube: 'search-outline',
     notifications: 'notifications',
     people: 'people',
     person: 'person',

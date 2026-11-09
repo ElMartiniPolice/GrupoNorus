@@ -40,6 +40,14 @@ class Habitacion(models.Model):
         on_delete=models.PROTECT,
         related_name='habitaciones',
     )
+    asignada_a = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='habitaciones_asignadas',
+        verbose_name='responsable de housekeeping',
+    )
     estado = models.CharField(
         max_length=20,
         choices=ESTADOS_HABITACION,

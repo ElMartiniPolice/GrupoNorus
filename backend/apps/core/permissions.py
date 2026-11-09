@@ -1,7 +1,7 @@
 """
 Permisos por rol y área — Grupo Norus.
 
-Roles: ADMINISTRADOR, OPERARIO, RECEPCION
+Roles: ADMINISTRADOR, OPERARIO, RECEPCION, SUPERVISOR
 Áreas: RECEPCION, MANTENCION, HOUSEKEEPING
 
 Implementa el control de acceso basado en roles del caso CP-DP-02:
@@ -17,7 +17,17 @@ def is_admin(user):
 
 
 def is_recepcion(user):
-    return bool(user and user.is_authenticated and user.rol and user.rol.nombre == 'RECEPCION')
+    return bool(
+        user and user.is_authenticated and user.rol
+        and user.rol.nombre in ('RECEPCION', 'SUPERVISOR')
+    )
+
+
+def is_supervisor(user):
+    return bool(
+        user and user.is_authenticated and user.rol
+        and user.rol.nombre == 'SUPERVISOR'
+    )
 
 
 def is_operario(user):
@@ -37,7 +47,7 @@ class IsAdmin(BasePermission):
 
 
 class IsRecepcion(BasePermission):
-    """Personal de recepción (check-in, check-out, monitoreo)."""
+    """Recepción y supervisión (check-in, check-out, monitoreo)."""
 
     message = 'Se requiere rol RECEPCION.'
 
@@ -46,12 +56,21 @@ class IsRecepcion(BasePermission):
 
 
 class IsAdminOrRecepcion(BasePermission):
-    """Administradores o recepción (asignación de tareas y habitaciones)."""
+    """Administradores, recepción o supervisión."""
 
     message = 'Se requiere rol ADMINISTRADOR o RECEPCION.'
 
     def has_permission(self, request, view):
         return is_admin(request.user) or is_recepcion(request.user)
+
+
+class IsAdminOrSupervisor(BasePermission):
+    """Administradores o supervisores para asignaciones de habitaciones."""
+
+    message = 'Se requiere rol ADMINISTRADOR o SUPERVISOR.'
+
+    def has_permission(self, request, view):
+        return is_admin(request.user) or is_supervisor(request.user)
 
 
 class IsOwnerOrAdmin(BasePermission):

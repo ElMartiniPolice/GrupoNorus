@@ -11,13 +11,15 @@ MEDIA local en desarrollo).
 """
 from django.db.models import Q
 from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated, SAFE_METHODS
 
 from apps.core.permissions import is_operario
+from apps.notifications.services import notificar
 from apps.rooms.services import habitaciones_del_operario
+from apps.users.models import Usuario
 
-from .models import EvidenciaFotografica
-from .serializers import EvidenciaFotograficaSerializer
+from .models import EvidenciaFotografica, ObjetoEncontrado
+from .serializers import EvidenciaFotograficaSerializer, ObjetoEncontradoSerializer
 
 
 class EvidenciaFotograficaViewSet(viewsets.ModelViewSet):
@@ -78,3 +80,50 @@ class EvidenciaFotograficaViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(subida_por=self.request.user)
+
+
+class PuedeGestionarObjetosEncontrados(BasePermission):
+    """Permite a cualquier usuario autenticado registrar y consultar hallazgos."""
+
+    message = 'No tiene permiso para esta acción.'
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.method in SAFE_METHODS or request.method == 'POST'
+
+
+class ObjetoEncontradoViewSet(viewsets.ModelViewSet):
+    queryset = ObjetoEncontrado.objects.select_related('encontrado_por', 'habitacion').all()
+    serializer_class = ObjetoEncontradoSerializer
+    permission_classes = [PuedeGestionarObjetosEncontrados]
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if is_operario(self.request.user):
+            return queryset.filter(encontrado_por=self.request.user)
+        return queryset
+
+    def perform_create(self, serializer):
+        habitacion = serializer.validated_data['habitacion']
+        objeto = serializer.save(
+            encontrado_por=self.request.user,
+            ubicacion=habitacion.numero,
+        )
+        destinatarios = Usuario.objects.filter(
+            is_active=True,
+        ).filter(
+            Q(rol__nombre__in=['ADMINISTRADOR', 'RECEPCION', 'SUPERVISOR'])
+            | Q(
+                pk=habitacion.asignada_a_id,
+                rol__nombre='OPERARIO',
+                area__nombre__iexact='HOUSEKEEPING',
+            )
+        ).distinct().values_list('id', flat=True)
+        for usuario_id in destinatarios:
+            notificar(
+                usuario_id,
+                'Objeto encontrado',
+                f'{objeto.nombre} encontrado en la habitación {objeto.habitacion.numero}.',
+            )

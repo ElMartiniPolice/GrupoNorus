@@ -19,5 +19,7 @@ def habitaciones_del_operario(user):
     if not (user and user.is_authenticated):
         return Habitacion.objects.none()
     return Habitacion.objects.filter(
-        Q(tareas__asignado_a=user) | Q(incidencias__reportado_por=user),
+        Q(asignada_a=user)
+        | Q(tareas__asignado_a=user)
+        | Q(incidencias__reportado_por=user),
     ).distinct()
