@@ -23,7 +23,8 @@ from PIL import Image
 from apps.evidence.models import EvidenciaFotografica
 from apps.incidents.models import Incidencia
 from apps.notifications.models import Notificacion
-from apps.rooms.models import Habitacion, RegistroEstadia, TipoHabitacion
+from apps.rooms.models import Habitacion, ItemInventario, PlantillaInventario, RegistroEstadia, TipoHabitacion
+from apps.rooms.services import aplicar_plantilla_a_habitacion
 from apps.tasks.models import AsignacionTarea, HistorialEstadoTarea
 from apps.users.models import Area, Rol, Usuario
 
@@ -119,6 +120,91 @@ class Command(BaseCommand):
         h108 = crear_habitacion('108', tipo_matrimonial, 'LIMPIEZA')
         h109 = crear_habitacion('109', tipo_doble, 'DISPONIBLE')
         h110 = crear_habitacion('110', tipo_suite, 'OCUPADA')
+
+        # Asignar operarias de housekeeping para demo
+        Habitacion.objects.filter(pk=h101.pk).update(asignada_a=luisa)
+        Habitacion.objects.filter(pk=h102.pk).update(asignada_a=valentina)
+        Habitacion.objects.filter(pk=h103.pk).update(asignada_a=luisa)
+        Habitacion.objects.filter(pk=h105.pk).update(asignada_a=valentina)
+
+        # ------------------------------------------------------------------
+        # 3.1 Plantillas de inventario predeterminadas por tipo
+        # ------------------------------------------------------------------
+        def crear_plantilla(tipo, nombre, categoria, cantidad):
+            PlantillaInventario.objects.get_or_create(
+                tipo_habitacion=tipo,
+                nombre=nombre,
+                defaults={'categoria': categoria, 'cantidad': cantidad},
+            )
+
+        dotacion_comun = [
+            ('Toallas de baño', 'BANO', 2),
+            ('Toallas de mano', 'BANO', 2),
+            ('Almohadas estándar', 'BLANQUERIA', 2),
+            ('Juego de sábanas', 'BLANQUERIA', 1),
+            ('Frazada térmica', 'BLANQUERIA', 1),
+            ('Vasos de vidrio', 'MENAJE', 2),
+            ('Tazas de café', 'MENAJE', 2),
+            ('Hervidor eléctrico', 'ELECTRODOMESTICOS', 1),
+            ('Frigobar', 'ELECTRODOMESTICOS', 1),
+            ('Televisor + Control', 'ELECTRODOMESTICOS', 1),
+            ('Secador de pelo', 'BANO', 1),
+        ]
+
+        for nombre, cat, cant in dotacion_comun:
+            crear_plantilla(tipo_simple, nombre, cat, cant)
+
+        for nombre, cat, cant in dotacion_comun:
+            cant_doble = cant * 2 if cat in ('BANO', 'BLANQUERIA', 'MENAJE') and cant > 1 else cant
+            crear_plantilla(tipo_doble, nombre, cat, cant_doble)
+            crear_plantilla(tipo_matrimonial, nombre, cat, cant_doble)
+
+        # Suite: incluye artículos premium adicionales
+        dotacion_suite = [
+            ('Toallas de baño', 'BANO', 4),
+            ('Toallas de mano', 'BANO', 4),
+            ('Batas de baño', 'BANO', 2),
+            ('Almohadas de pluma', 'BLANQUERIA', 4),
+            ('Juego de sábanas satén', 'BLANQUERIA', 1),
+            ('Edredón nórdico', 'BLANQUERIA', 1),
+            ('Copas de vino', 'MENAJE', 2),
+            ('Vasos de cristal', 'MENAJE', 4),
+            ('Vajilla completa', 'MENAJE', 4),
+            ('Cafetera Nespresso', 'ELECTRODOMESTICOS', 1),
+            ('Hervidor eléctrico', 'ELECTRODOMESTICOS', 1),
+            ('Frigobar ejecutivo', 'ELECTRODOMESTICOS', 1),
+            ('Smart TV 55" + Control', 'ELECTRODOMESTICOS', 2),
+            ('Secador de pelo iónico', 'BANO', 1),
+            ('Plancha y tabla de planchar', 'ELECTRODOMESTICOS', 1),
+            ('Caja fuerte digital', 'MOBILIARIO', 1),
+        ]
+        for nombre, cat, cant in dotacion_suite:
+            crear_plantilla(tipo_suite, nombre, cat, cant)
+
+        # Aplicar dotación estándar a todas las habitaciones
+        todas_habs = [h101, h102, h103, h104, h105, h106, h107, h108, h109, h110]
+        for hab in todas_habs:
+            aplicar_plantilla_a_habitacion(hab, sobrescribir_cantidades=False, notificar_operario=False)
+
+        # Crear faltante de ejemplo en Hab. 103 (limpieza)
+        item_toallas_103 = ItemInventario.objects.filter(habitacion=h103, nombre='Toallas de baño').first()
+        if item_toallas_103:
+            item_toallas_103.cantidad_actual = 1
+            item_toallas_103.estado = 'FALTANTE'
+            item_toallas_103.notas = 'Falta 1 toalla de baño tras último check-out.'
+            item_toallas_103.solicitado_en = ahora - timedelta(hours=3)
+            item_toallas_103.solicitado_por = luisa
+            item_toallas_103.save()
+
+        # Crear ítem pendiente de validación en Hab. 102 (marcado como repuesto por Valentina)
+        item_almohadas_102 = ItemInventario.objects.filter(habitacion=h102, nombre='Almohadas estándar').first()
+        if item_almohadas_102:
+            item_almohadas_102.estado = 'PENDIENTE_VALIDACION'
+            item_almohadas_102.cantidad_actual = item_almohadas_102.cantidad_esperada
+            item_almohadas_102.notas = 'Almohadas repuestas por camarera.'
+            item_almohadas_102.repuesto_en = ahora - timedelta(hours=1)
+            item_almohadas_102.repuesto_por = valentina
+            item_almohadas_102.save()
 
         # ------------------------------------------------------------------
         # 4. Estadías (CU1/CU3) — salida NULL = estadía activa
@@ -316,6 +402,15 @@ class Command(BaseCommand):
             valentina, 'Tarea completada',
             'La tarea «Cambio de sábanas habitación 102» fue validada.',
             leida=True)
+        crear_notificacion(
+            luisa, 'Faltante en tu Hab. 103',
+            'Se reportó un faltante en tu habitación 103: Toallas de baño (hay 1 de 2, faltan 1). Obs: Falta 1 toalla de baño tras último check-out.')
+        crear_notificacion(
+            admin, 'Validar reposición Hab. 102',
+            'Valentina Muñoz marcó como repuesto "Almohadas estándar" en la habitación 102. Requiere validación de coordinación.')
+        crear_notificacion(
+            recepcionista, 'Validar reposición Hab. 102',
+            'Valentina Muñoz marcó como repuesto "Almohadas estándar" en la habitación 102. Requiere validación de coordinación.')
 
         # ------------------------------------------------------------------
         # Resumen

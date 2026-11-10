@@ -94,14 +94,39 @@ export const roomService = {
     const { data } = await api.get(`/rooms/habitaciones/${habitacionId}/inventario/`);
     return data.results ?? data;
   },
-  /** Solicita reposición o marca un ítem como faltante. */
-  async solicitarItem(itemId, notas = '') {
-    const { data } = await api.post(`/rooms/inventario/${itemId}/solicitar/`, { notas });
+  /** Aplica o sincroniza la plantilla estándar a la habitación. */
+  async aplicarPlantilla(habitacionId, sobrescribir = false) {
+    const { data } = await api.post(`/rooms/habitaciones/${habitacionId}/aplicar_plantilla/`, { sobrescribir });
     return data;
   },
-  /** Marca un ítem solicitado como repuesto (COMPLETO). */
+  /** Reporta un ítem como faltante con cantidad actual y observación. */
+  async reportarFaltante(itemId, payload = {}) {
+    const { data } = await api.post(`/rooms/inventario/${itemId}/reportar_faltante/`, payload);
+    return data;
+  },
+  /** La persona asignada marca la reposición; queda pendiente de validación por coordinación. */
+  async marcarRepuesto(itemId) {
+    const { data } = await api.post(`/rooms/inventario/${itemId}/marcar_repuesto/`);
+    return data;
+  },
+  /** Valida definitivamente la reposición de un ítem (ADMINISTRADOR / RECEPCION). */
+  async validarReposicion(itemId) {
+    const { data } = await api.post(`/rooms/inventario/${itemId}/validar_reposicion/`);
+    return data;
+  },
+  /** Plantillas estándar de inventario por tipo de habitación. */
+  async plantillas(params = {}) {
+    const { data } = await api.get('/rooms/plantillas-inventario/', { params });
+    return data.results ?? data;
+  },
+  /** Solicita reposición o marca un ítem como faltante (retrocompatible). */
+  async solicitarItem(itemId, notas = '', cantidad_actual = 0) {
+    const { data } = await api.post(`/rooms/inventario/${itemId}/reportar_faltante/`, { notas, cantidad_actual });
+    return data;
+  },
+  /** Marca un ítem solicitado como repuesto (retrocompatible). */
   async reponerItem(itemId) {
-    const { data } = await api.post(`/rooms/inventario/${itemId}/reponer/`);
+    const { data } = await api.post(`/rooms/inventario/${itemId}/marcar_repuesto/`);
     return data;
   },
   /** Agrega un nuevo ítem al inventario de una habitación. */

@@ -160,9 +160,39 @@ CATEGORIAS_INVENTARIO = [
 ESTADOS_INVENTARIO = [
     ('COMPLETO', 'Completo'),
     ('FALTANTE', 'Faltante'),
+    ('PENDIENTE_VALIDACION', 'Pendiente de validación'),
     ('DANADO', 'Dañado'),
     ('SOLICITADO', 'Solicitado'),
 ]
+
+
+class PlantillaInventario(models.Model):
+    """
+    Plantilla de dotación estándar predeterminada por tipo de habitación.
+    Define qué artículos y cantidades debe tener cada habitación según su tipo.
+    """
+    tipo_habitacion = models.ForeignKey(
+        TipoHabitacion,
+        on_delete=models.CASCADE,
+        related_name='plantillas_inventario',
+    )
+    nombre = models.CharField(max_length=100)
+    categoria = models.CharField(
+        max_length=30,
+        choices=CATEGORIAS_INVENTARIO,
+        default='OTROS',
+    )
+    cantidad = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = 'plantilla_inventario'
+        ordering = ['tipo_habitacion', 'categoria', 'nombre']
+        unique_together = ('tipo_habitacion', 'nombre')
+        verbose_name = 'plantilla de inventario'
+        verbose_name_plural = 'plantillas de inventario'
+
+    def __str__(self):
+        return f'{self.nombre} (x{self.cantidad}) · {self.tipo_habitacion.nombre}'
 
 
 class ItemInventario(models.Model):
@@ -182,8 +212,10 @@ class ItemInventario(models.Model):
         default='OTROS',
     )
     cantidad = models.PositiveIntegerField(default=1)
+    cantidad_esperada = models.PositiveIntegerField(default=1)
+    cantidad_actual = models.PositiveIntegerField(default=1)
     estado = models.CharField(
-        max_length=20,
+        max_length=25,
         choices=ESTADOS_INVENTARIO,
         default='COMPLETO',
     )
@@ -196,6 +228,14 @@ class ItemInventario(models.Model):
         blank=True,
         related_name='items_inventario_solicitados',
     )
+    repuesto_en = models.DateTimeField(null=True, blank=True)
+    repuesto_por = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='items_inventario_repuestos',
+    )
     actualizado_en = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -205,5 +245,17 @@ class ItemInventario(models.Model):
         verbose_name_plural = 'ítems de inventario'
 
     def __str__(self):
-        return f'{self.nombre} (x{self.cantidad}) · Hab. {self.habitacion.numero}'
+        return f'{self.nombre} ({self.cantidad_actual}/{self.cantidad_esperada}) · Hab. {self.habitacion.numero}'
+
+    def save(self, *args, **kwargs):
+        # Sincronizar cantidad con cantidad_esperada para compatibilidad
+        if self.cantidad_esperada and (not self.cantidad or self.cantidad != self.cantidad_esperada):
+            self.cantidad = self.cantidad_esperada
+        elif self.cantidad and not self.cantidad_esperada:
+            self.cantidad_esperada = self.cantidad
+
+        if self.cantidad_actual is None:
+            self.cantidad_actual = self.cantidad_esperada
+
+        super().save(*args, **kwargs)
 

@@ -8,13 +8,19 @@ CP-HAB-01: gestión de habitaciones (ADMINISTRADOR / RECEPCION).
 CP-DP-02: un OPERARIO solo ve SUS habitaciones (las de sus tareas
       asignadas o de las incidencias que reportó).
 """
+from django.db import models
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.core.permissions import IsAdmin, IsAdminOrRecepcion, IsAdminOrSupervisor, is_operario
+from apps.core.permissions import (
+    IsAdmin,
+    IsAdminOrRecepcion,
+    IsAdminOrSupervisor,
+    is_operario,
+)
 from apps.notifications.services import notificar
 from apps.users.models import Usuario
 from .models import (
@@ -22,6 +28,7 @@ from .models import (
     ESTADOS_HABITACION,
     Habitacion,
     ItemInventario,
+    PlantillaInventario,
     RegistroEstadia,
     TipoHabitacion,
 )
@@ -30,10 +37,11 @@ from .serializers import (
     HabitacionMiniSerializer,
     HabitacionSerializer,
     ItemInventarioSerializer,
+    PlantillaInventarioSerializer,
     RegistroEstadiaSerializer,
     TipoHabitacionSerializer,
 )
-from .services import habitaciones_del_operario
+from .services import aplicar_plantilla_a_habitacion, habitaciones_del_operario
 
 
 class TipoHabitacionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -79,9 +87,69 @@ class HabitacionViewSet(viewsets.ModelViewSet):
             return [IsAdmin()]
         if self.action in ('update', 'partial_update') and 'asignada_a' in self.request.data:
             return [IsAdminOrSupervisor()]
-        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+        if self.action in ('create', 'update', 'partial_update', 'destroy', 'aplicar_plantilla'):
             return [IsAdminOrRecepcion()]
         return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        habitacion = serializer.save()
+        # Aplica automáticamente la plantilla estándar si existe para el tipo de habitación
+        aplicar_plantilla_a_habitacion(habitacion, notificar_operario=True)
+
+    def perform_update(self, serializer):
+        hab_anterior = self.get_object()
+        asignada_anterior_id = hab_anterior.asignada_a_id
+        habitacion = serializer.save()
+
+        # Si se asigna una nueva operaria de housekeeping a la habitación
+        if habitacion.asignada_a_id and habitacion.asignada_a_id != asignada_anterior_id:
+            faltantes = habitacion.inventario.filter(
+                models.Q(estado__in=['SOLICITADO', 'FALTANTE', 'PENDIENTE_VALIDACION'])
+                | models.Q(cantidad_actual__lt=models.F('cantidad_esperada'))
+            )
+            if faltantes.exists():
+                detalle_items = ', '.join([
+                    f'{f.nombre} (hay {f.cantidad_actual}/{f.cantidad_esperada})'
+                    for f in faltantes[:4]
+                ])
+                if faltantes.count() > 4:
+                    detalle_items += f' y {faltantes.count() - 4} más'
+                notificar(
+                    habitacion.asignada_a_id,
+                    f'Faltantes en Hab. {habitacion.numero}',
+                    (
+                        f'Se te ha asignado la habitación {habitacion.numero}. '
+                        f'Atención: tiene {faltantes.count()} artículo(s) faltante(s) en su inventario: {detalle_items}.'
+                    ),
+                )
+            else:
+                notificar(
+                    habitacion.asignada_a_id,
+                    f'Habitación {habitacion.numero} asignada',
+                    f'Se te ha asignado la habitación {habitacion.numero} para housekeeping.',
+                )
+
+    @action(detail=True, methods=['post'])
+    def aplicar_plantilla(self, request, pk=None):
+        """
+        Aplica o sincroniza manualmente la plantilla estándar según el tipo de habitación.
+        Accesible para ADMINISTRADOR y RECEPCIÓN.
+        """
+        habitacion = self.get_object()
+        sobrescribir = bool(request.data.get('sobrescribir', False))
+        creados, actualizados = aplicar_plantilla_a_habitacion(
+            habitacion,
+            sobrescribir_cantidades=sobrescribir,
+            notificar_operario=True,
+        )
+        return Response({
+            'detail': (
+                f'Plantilla aplicada para la habitación {habitacion.numero}: '
+                f'{creados} artículos nuevos incorporados, {actualizados} actualizados.'
+            ),
+            'creados': creados,
+            'actualizados': actualizados,
+        })
 
     @action(detail=True, methods=['post'])
     def cambiar_estado(self, request, pk=None):
@@ -203,15 +271,32 @@ class RegistroEstadiaViewSet(viewsets.ModelViewSet):
         )
 
 
+class PlantillaInventarioViewSet(viewsets.ModelViewSet):
+    """
+    Plantillas de dotación estándar por tipo de habitación.
+    - Creación y edición: ADMINISTRADOR o RECEPCIÓN.
+    - Consulta: Cualquier usuario autenticado.
+    """
+    queryset = PlantillaInventario.objects.select_related('tipo_habitacion').all()
+    serializer_class = PlantillaInventarioSerializer
+    filterset_fields = ['tipo_habitacion', 'categoria']
+
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAdminOrRecepcion()]
+        return [IsAuthenticated()]
+
+
 class ItemInventarioViewSet(viewsets.ModelViewSet):
     """
     Ítems de inventario de habitaciones.
     - OPERARIO accede a los ítems de sus habitaciones asignadas (CP-DP-02).
-    - Creación y eliminación de artículos reservados a ADMINISTRADOR y RECEPCION.
-    - Cualquier usuario autenticado que tenga acceso a la habitación puede marcar
-      solicitud de reposición o reponer el ítem.
+    - Creación y eliminación reservadas a ADMINISTRADOR y RECEPCIÓN.
+    - Reportar faltantes: todos los usuarios autenticados.
+    - Marcar repuesto: solo la persona asignada a la habitación; queda
+      PENDIENTE_VALIDACION hasta que ADMINISTRACIÓN o RECEPCIÓN lo valide.
     """
-    queryset = ItemInventario.objects.select_related('habitacion', 'solicitado_por').all()
+    queryset = ItemInventario.objects.select_related('habitacion', 'solicitado_por', 'habitacion__asignada_a').all()
     serializer_class = ItemInventarioSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ['habitacion', 'categoria', 'estado']
@@ -223,51 +308,149 @@ class ItemInventarioViewSet(viewsets.ModelViewSet):
         return qs
 
     def get_permissions(self):
-        if self.action in ('create', 'destroy'):
+        if self.action in ('create', 'destroy', 'validar_reposicion'):
             return [IsAdminOrRecepcion()]
         return [IsAuthenticated()]
 
     @action(detail=True, methods=['post'])
-    def solicitar(self, request, pk=None):
-        """Marca un ítem como SOLICITADO / FALTANTE y notifica a coordinación."""
+    def reportar_faltante(self, request, pk=None):
+        """
+        Reporta un artículo como faltante.
+        Permitido a cualquier usuario autenticado y notifica a coordinación
+        y a la persona asignada a la habitación.
+        """
         item = self.get_object()
-        notas = request.data.get('notas', '').strip()
-        item.estado = 'SOLICITADO'
+        notas = str(request.data.get('notas', '')).strip()
+
+        # Parsear cantidad_actual
+        cantidad_actual = request.data.get('cantidad_actual')
+        try:
+            cantidad_actual = int(cantidad_actual)
+            if cantidad_actual < 0:
+                cantidad_actual = 0
+            if cantidad_actual > item.cantidad_esperada:
+                cantidad_actual = item.cantidad_esperada
+        except (ValueError, TypeError):
+            cantidad_actual = 0
+
+        item.cantidad_actual = cantidad_actual
+        item.estado = 'FALTANTE'
         item.notas = notas
         item.solicitado_en = timezone.now()
         item.solicitado_por = request.user
         item.save()
 
-        # Notificar a Recepción y Administración
+        solicitante = (
+            f'{getattr(request.user, "nombre", "")} '
+            f'{getattr(request.user, "apellido", "")}'
+        ).strip() or 'Personal'
+        faltan = max(0, item.cantidad_esperada - item.cantidad_actual)
         mensaje = (
-            f'Se ha solicitado reposición de "{item.nombre}" (x{item.cantidad}) '
-            f'en la habitación {item.habitacion.numero}.'
+            f'Marcado como faltante por {solicitante}: "{item.nombre}" en habitación '
+            f'{item.habitacion.numero}: '
+            f'hay {item.cantidad_actual} de {item.cantidad_esperada} (faltan {faltan}).'
         )
         if notas:
             mensaje += f' Observación: {notas}'
-        if request.user:
-            nombre_solicitante = getattr(request.user, 'nombre', '')
-            apellido_solicitante = getattr(request.user, 'apellido', '')
-            if nombre_solicitante or apellido_solicitante:
-                mensaje += f' (Solicitado por {nombre_solicitante} {apellido_solicitante})'
 
         coordinadores = Usuario.objects.filter(
             is_active=True,
             rol__nombre__in=['ADMINISTRADOR', 'RECEPCION'],
         )
-        for coordinador in coordinadores:
-            notificar(coordinador.id, f'Inventario Hab. {item.habitacion.numero}', mensaje)
+        destinatarios = {request.user.id}
+        destinatarios.update(coordinador.id for coordinador in coordinadores)
+        if item.habitacion.asignada_a_id:
+            destinatarios.add(item.habitacion.asignada_a_id)
+        for destinatario_id in destinatarios:
+            notificar(destinatario_id, f'Faltante Hab. {item.habitacion.numero}', mensaje)
 
         return Response(self.get_serializer(item).data)
 
     @action(detail=True, methods=['post'])
-    def reponer(self, request, pk=None):
-        """Marca el ítem como COMPLETO (repuesto)."""
+    def marcar_repuesto(self, request, pk=None):
+        """
+        La persona asignada a la habitación marca el artículo como repuesto.
+        La reposición queda pendiente de validación por ADMINISTRACIÓN o RECEPCIÓN.
+        """
         item = self.get_object()
-        item.estado = 'COMPLETO'
-        item.notas = ''
-        item.solicitado_en = None
-        item.solicitado_por = None
+        if item.habitacion.asignada_a_id != request.user.id:
+            return Response(
+                {'detail': 'Solo la persona asignada a la habitación puede marcar el artículo como repuesto.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        solicitante = (
+            f'{getattr(request.user, "nombre", "")} '
+            f'{getattr(request.user, "apellido", "")}'
+        ).strip() or 'Personal'
+        item.repuesto_por = request.user
+        item.repuesto_en = timezone.now()
+        item.estado = 'PENDIENTE_VALIDACION'
+        item.cantidad_actual = item.cantidad_esperada
         item.save()
+
+        mensaje = (
+            f'{solicitante} marcó como repuesto "{item.nombre}" en la habitación '
+            f'{item.habitacion.numero}. Requiere validación de coordinación.'
+        )
+        coordinadores = Usuario.objects.filter(
+            is_active=True,
+            rol__nombre__in=['ADMINISTRADOR', 'RECEPCION'],
+        )
+        for coordinador in coordinadores:
+            notificar(coordinador.id, f'Validar reposición Hab. {item.habitacion.numero}', mensaje)
+
         return Response(self.get_serializer(item).data)
 
+    @action(detail=True, methods=['post'])
+    def validar_reposicion(self, request, pk=None):
+        """
+        Valida definitivamente la reposición de un ítem (ADMINISTRADOR / RECEPCION).
+        Pasa el estado a COMPLETO y notifica al operario y a coordinación.
+        """
+        item = self.get_object()
+        if item.estado != 'PENDIENTE_VALIDACION':
+            return Response(
+                {'detail': 'El artículo no tiene una reposición pendiente de validación.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        item.estado = 'COMPLETO'
+        item.cantidad_actual = item.cantidad_esperada
+        item.notas = ''
+        item.save()
+
+        validador = f'{getattr(request.user, "nombre", "")} {getattr(request.user, "apellido", "")}'.strip() or 'Coordinación'
+        quien_repuso = (
+            f'{getattr(item.repuesto_por, "nombre", "")} {getattr(item.repuesto_por, "apellido", "")}'.strip()
+            if item.repuesto_por else 'la encargada'
+        )
+        mensaje = (
+            f'{validador} validó la reposición de "{item.nombre}" en la habitación {item.habitacion.numero} '
+            f'(repuesto por {quien_repuso}). Dotación completa.'
+        )
+        coordinadores = Usuario.objects.filter(
+            is_active=True,
+            rol__nombre__in=['ADMINISTRADOR', 'RECEPCION'],
+        )
+        for coordinador in coordinadores:
+            notificar(coordinador.id, f'Reposición validada Hab. {item.habitacion.numero}', mensaje)
+
+        if item.habitacion.asignada_a_id:
+            notificar(
+                item.habitacion.asignada_a_id,
+                f'Reposición validada Hab. {item.habitacion.numero}',
+                f'Se validó la reposición de "{item.nombre}" en tu habitación {item.habitacion.numero}. Dotación completa.',
+            )
+
+        return Response(self.get_serializer(item).data)
+
+    @action(detail=True, methods=['post'])
+    def solicitar(self, request, pk=None):
+        """Alias retrocompatible de reportar_faltante."""
+        return self.reportar_faltante(request, pk=pk)
+
+    @action(detail=True, methods=['post'])
+    def reponer(self, request, pk=None):
+        """Alias retrocompatible de marcar_repuesto."""
+        return self.marcar_repuesto(request, pk=pk)

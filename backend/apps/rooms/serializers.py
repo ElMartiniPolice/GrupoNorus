@@ -5,6 +5,7 @@ Contrato de API (según las pantallas del frontend):
 - Las FK se LEEN como objetos anidados ({id, numero} / {id, nombre})
   y se ESCRIBEN como IDs planos.
 """
+from django.db import models
 from rest_framework import serializers
 
 from apps.core.fields import NestedPKRelatedField
@@ -14,6 +15,7 @@ from .models import (
     CambioEstadoHabitacion,
     Habitacion,
     ItemInventario,
+    PlantillaInventario,
     RegistroEstadia,
     TipoHabitacion,
 )
@@ -58,7 +60,10 @@ class HabitacionSerializer(serializers.ModelSerializer):
         ]
 
     def get_items_faltantes_count(self, obj):
-        return obj.inventario.filter(estado__in=['SOLICITADO', 'FALTANTE']).count()
+        return obj.inventario.filter(
+            models.Q(estado__in=['SOLICITADO', 'FALTANTE', 'PENDIENTE_VALIDACION'])
+            | models.Q(cantidad_actual__lt=models.F('cantidad_esperada'))
+        ).count()
 
 
 class RegistroEstadiaSerializer(serializers.ModelSerializer):
@@ -98,18 +103,38 @@ class CambioEstadoHabitacionSerializer(serializers.ModelSerializer):
         ]
 
 
+class PlantillaInventarioSerializer(serializers.ModelSerializer):
+    tipo_habitacion = NestedPKRelatedField(
+        queryset=TipoHabitacion.objects.all(),
+        serializer_class=TipoHabitacionSerializer,
+    )
+
+    class Meta:
+        model = PlantillaInventario
+        fields = ['id', 'tipo_habitacion', 'nombre', 'categoria', 'cantidad']
+
+
 class ItemInventarioSerializer(serializers.ModelSerializer):
     habitacion = NestedPKRelatedField(
         queryset=Habitacion.objects.all(),
         serializer_class=HabitacionMiniSerializer,
     )
     solicitado_por = UsuarioMiniSerializer(read_only=True)
+    repuesto_por = UsuarioMiniSerializer(read_only=True)
+    cantidad_faltante = serializers.SerializerMethodField()
 
     class Meta:
         model = ItemInventario
         fields = [
             'id', 'habitacion', 'nombre', 'categoria', 'cantidad',
+            'cantidad_esperada', 'cantidad_actual', 'cantidad_faltante',
             'estado', 'notas', 'solicitado_en', 'solicitado_por',
+            'repuesto_en', 'repuesto_por',
             'actualizado_en',
         ]
+
+    def get_cantidad_faltante(self, obj):
+        esperada = obj.cantidad_esperada or obj.cantidad or 0
+        actual = obj.cantidad_actual if obj.cantidad_actual is not None else esperada
+        return max(0, esperada - actual)
 

@@ -94,6 +94,7 @@ export default function RoomDetailScreen({ route }) {
   const [evidencias, setEvidencias] = useState([]);
   const [inventario, setInventario] = useState([]);
   const [solicitandoId, setSolicitandoId] = useState(null);
+  const [cantidadActualReporte, setCantidadActualReporte] = useState(0);
   const [notasSolicitud, setNotasSolicitud] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('TODAS');
   const [nuevoItemOpen, setNuevoItemOpen] = useState(false);
@@ -126,27 +127,27 @@ export default function RoomDetailScreen({ route }) {
       setCambios(Array.isArray(ca) ? ca : []);
       setInventario(Array.isArray(inv) ? inv : []);
 
-        /** HU-10/HU-11: Cargar checklist según tipo de habitación */
-        if (r && r.tipo) {
-          const tipoHabitacion = r.tipo.nombre || r.tipo || 'ESTANDAR';
-          const checklist = checklistTypes.getChecklistHabitacion(tipoHabitacion);
-          setChecklistHabitacion(checklistTypes.crearEstadoChecklist(checklist));
-          setChecklistTipo(tipoHabitacion);
-        }
-
-        /** HU-12: Cargar checklist del área si el usuario es de ese área */
-        if (r && r.area_nombre && (esRecepcion || esOperario)) {
-          const area = r.area_nombre;
-          const areaChecklist = checklistTypes.getChecklistArea(area);
-          setChecklistArea(checklistTypes.crearEstadoChecklist(areaChecklist));
-        }
-
-        setError('');
-      } catch (e) {
-        const m = onError(e);
-        if (m) setError(m);
+      /** HU-10/HU-11: Cargar checklist según tipo de habitación */
+      if (r && r.tipo) {
+        const tipoHabitacion = r.tipo.nombre || r.tipo || 'ESTANDAR';
+        const checklist = checklistTypes.getChecklistHabitacion(tipoHabitacion);
+        setChecklistHabitacion(checklistTypes.crearEstadoChecklist(checklist));
+        setChecklistTipo(tipoHabitacion);
       }
-    }, [id, onError, esRecepcion, esOperario]);
+
+      /** HU-12: Cargar checklist del área si el usuario es de ese área */
+      if (r && r.area_nombre && (esRecepcion || esOperario)) {
+        const area = r.area_nombre;
+        const areaChecklist = checklistTypes.getChecklistArea(area);
+        setChecklistArea(checklistTypes.crearEstadoChecklist(areaChecklist));
+      }
+
+      setError('');
+    } catch (e) {
+      const m = onError(e);
+      if (m) setError(m);
+    }
+  }, [id, onError, esRecepcion, esOperario]);
 
   useFocusEffect(
     useCallback(() => {
@@ -243,48 +244,66 @@ export default function RoomDetailScreen({ route }) {
   const cambiarEstado = (nuevo) => {
     if (room.estado === nuevo) return;
 
-      /** HU-11: Validar checklist antes de permitir DISPONIBLE */
-      if (nuevo === 'DISPONIBLE' && checklistTipo) {
-        const requiere = checklistTypes.requiereChecklistParaDisponible(checklistTipo);
-        if (requiere && !todosCompletados(checklistHabitacion)) {
-          setMsg('Debe completar el checklist de limpieza antes de cambiar el estado a Disponible.');
-          return;
-        }
+    /** HU-11: Validar checklist antes de permitir DISPONIBLE */
+    if (nuevo === 'DISPONIBLE' && checklistTipo) {
+      const requiere = checklistTypes.requiereChecklistParaDisponible(checklistTipo);
+      if (requiere && !todosCompletados(checklistHabitacion)) {
+        setMsg('Debe completar el checklist de limpieza antes de cambiar el estado a Disponible.');
+        return;
       }
+    }
 
-      accion(
-        async () => {
-          await roomService.cambiarEstado(id, nuevo, foto);
-          setFoto(null);
-          /** HU-11: Después de cambiar a LIMPIEZA, mostrar checklist */
-          if (nuevo === 'LIMPIEZA') {
-            setChecklistVisible(true);
-          }
-          /** HU-11: Después de completar, marcar checklist como done */
-          if (nuevo === 'DISPONIBLE') {
-            setChecklistVisible(false);
-            setMsg('Habitación disponible. Checklist verificado.');
-          }
-        },
-        'Estado actualizado.',
-      );
-    };
-
-  const solicitarItem = (itemId) => {
     accion(
       async () => {
-        await roomService.solicitarItem(itemId, notasSolicitud);
-        setSolicitandoId(null);
-        setNotasSolicitud('');
+        await roomService.cambiarEstado(id, nuevo, foto);
+        setFoto(null);
+        /** HU-11: Después de cambiar a LIMPIEZA, mostrar checklist */
+        if (nuevo === 'LIMPIEZA') {
+          setChecklistVisible(true);
+        }
+        /** HU-11: Después de completar, marcar checklist como done */
+        if (nuevo === 'DISPONIBLE') {
+          setChecklistVisible(false);
+          setMsg('Habitación disponible. Checklist verificado.');
+        }
       },
-      'Solicitud de reposición registrada y notificada a coordinación.',
+      'Estado actualizado.',
     );
   };
 
-  const reponerItem = (itemId) => {
+  const reportarFaltanteItem = (itemId) => {
     accion(
-      () => roomService.reponerItem(itemId),
-      'Artículo marcado como completo / repuesto.',
+      async () => {
+        await roomService.reportarFaltante(itemId, {
+          cantidad_actual: cantidadActualReporte,
+          notas: notasSolicitud,
+        });
+        setSolicitandoId(null);
+        setNotasSolicitud('');
+        setCantidadActualReporte(0);
+      },
+      'Faltante registrado y notificado a la persona asignada, Administración y Recepción.',
+    );
+  };
+
+  const marcarRepuestoItem = (itemId) => {
+    accion(
+      () => roomService.marcarRepuesto(itemId),
+      'Artículo marcado como repuesto. Quedó pendiente de validación por Administración o Recepción.',
+    );
+  };
+
+  const validarReposicionItem = (itemId) => {
+    accion(
+      () => roomService.validarReposicion(itemId),
+      'Reposición validada exitosamente. El inventario está completo.',
+    );
+  };
+
+  const sincronizarPlantilla = () => {
+    accion(
+      () => roomService.aplicarPlantilla(id, false),
+      'Dotación estándar predeterminada aplicada a la habitación.',
     );
   };
 
@@ -485,36 +504,58 @@ export default function RoomDetailScreen({ route }) {
 
         {/* ================= SECCIÓN DE INVENTARIO ================= */}
         <Card elevationLevel="level2" style={styles.invCard}>
-          <View style={styles.head}>
-            <View style={styles.sectionHeading}>
-              <Ionicons name="cube-outline" size={22} color={colors.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.subtitulo}>Inventario de la habitación</Text>
-                <Text style={styles.invSubtexto}>
-                  {inventario.filter((i) => i.estado === 'SOLICITADO' || i.estado === 'FALTANTE').length > 0
-                    ? `${inventario.filter((i) => i.estado === 'SOLICITADO' || i.estado === 'FALTANTE').length} faltante(s) de ${inventario.length} artículos`
-                    : `${inventario.length} artículos en orden`}
-                </Text>
+          {(() => {
+            const faltantesCount = inventario.filter(
+              (i) => i.estado === 'SOLICITADO' || i.estado === 'FALTANTE' || (i.cantidad_actual !== undefined && i.cantidad_actual < i.cantidad_esperada),
+            ).length;
+            const porValidarCount = inventario.filter((i) => i.estado === 'PENDIENTE_VALIDACION').length;
+
+            return (
+              <View style={styles.head}>
+                <View style={styles.sectionHeading}>
+                  <Ionicons name="cube-outline" size={22} color={colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.subtitulo}>Inventario y Dotación de la Habitación</Text>
+                    <Text style={styles.invSubtexto}>
+                      {faltantesCount > 0
+                        ? `${faltantesCount} faltante(s) de ${inventario.length} artículos requeridos`
+                        : `${inventario.length} artículos en orden según dotación estándar`}
+                      {porValidarCount > 0 ? ` · ${porValidarCount} por validar` : ''}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                  {porValidarCount > 0 ? (
+                    <Badge label={`${porValidarCount} Por validar`} color={colors.gold} />
+                  ) : null}
+                  {faltantesCount > 0 ? (
+                    <Badge label={`${faltantesCount} Faltantes`} color={colors.coral} />
+                  ) : (
+                    <Badge label="Completo" color={colors.primaryLight} />
+                  )}
+                </View>
               </View>
-            </View>
-            {inventario.filter((i) => i.estado === 'SOLICITADO' || i.estado === 'FALTANTE').length > 0 ? (
-              <Badge
-                label={`${inventario.filter((i) => i.estado === 'SOLICITADO' || i.estado === 'FALTANTE').length} Faltantes`}
-                color={colors.coral}
-              />
-            ) : (
-              <Badge label="Completo" color={colors.primaryLight} />
-            )}
-          </View>
+            );
+          })()}
 
           {puedeGestionar ? (
-            <View style={{ marginBottom: spacing.sm }}>
-              <Button
-                title={nuevoItemOpen ? 'Cerrar formulario' : '+ Agregar artículo al inventario'}
-                variant="ghost"
-                onPress={() => setNuevoItemOpen(!nuevoItemOpen)}
-                disabled={busy}
-              />
+            <View style={styles.invActionsHeader}>
+              <View style={{ flex: 1, minWidth: 160 }}>
+                <Button
+                  title={nuevoItemOpen ? 'Cerrar formulario' : '+ Agregar artículo manual'}
+                  variant="ghost"
+                  onPress={() => setNuevoItemOpen(!nuevoItemOpen)}
+                  disabled={busy}
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 180 }}>
+                <Button
+                  title="🔄 Sincronizar dotación estándar"
+                  variant="secondary"
+                  onPress={sincronizarPlantilla}
+                  disabled={busy}
+                />
+              </View>
             </View>
           ) : null}
 
@@ -528,7 +569,7 @@ export default function RoomDetailScreen({ route }) {
                 onChangeText={setNuevoNombre}
               />
               <Input
-                label="Cantidad estándar"
+                label="Cantidad estándar requerida"
                 placeholder="1"
                 keyboardType="numeric"
                 value={nuevaCantidad}
@@ -608,7 +649,7 @@ export default function RoomDetailScreen({ route }) {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Ionicons name="swap-horizontal" size={16} color={colors.primaryLight} />
                       <Text style={styles.carouselHelperText}>
-                        Carrusel de inventario ({itemsFiltrados.length} artículos)
+                        Dotación ({itemsFiltrados.length} artículos)
                       </Text>
                     </View>
                     <View style={styles.carouselArrows}>
@@ -636,7 +677,13 @@ export default function RoomDetailScreen({ route }) {
                     scrollEventThrottle={16}
                   >
                     {itemsFiltrados.map((item) => {
-                      const estaFaltante = item.estado === 'SOLICITADO' || item.estado === 'FALTANTE';
+                      const cantEsperada = item.cantidad_esperada || item.cantidad || 1;
+                      const cantActual = item.cantidad_actual !== undefined && item.cantidad_actual !== null
+                        ? item.cantidad_actual
+                        : cantEsperada;
+                      const faltan = Math.max(0, cantEsperada - cantActual);
+                      const estaPorValidar = item.estado === 'PENDIENTE_VALIDACION';
+                      const estaFaltante = item.estado === 'SOLICITADO' || item.estado === 'FALTANTE' || faltan > 0;
                       const estaDanado = item.estado === 'DANADO';
                       const pidiendo = solicitandoId === item.id;
                       const iconName = CATEGORIA_ICONS[item.categoria] || 'cube-outline';
@@ -646,7 +693,11 @@ export default function RoomDetailScreen({ route }) {
                           key={item.id}
                           style={[
                             styles.invCardItem,
-                            estaFaltante ? styles.invCardItemFaltante : styles.invCardItemCompleto,
+                            estaPorValidar
+                              ? styles.invCardItemPorValidar
+                              : estaFaltante
+                                ? styles.invCardItemFaltante
+                                : styles.invCardItemCompleto,
                           ]}
                         >
                           <View>
@@ -655,26 +706,68 @@ export default function RoomDetailScreen({ route }) {
                                 <Ionicons
                                   name={iconName}
                                   size={18}
-                                  color={estaFaltante ? colors.coral : colors.primary}
+                                  color={
+                                    estaPorValidar
+                                      ? colors.gold
+                                      : estaFaltante
+                                        ? colors.coral
+                                        : colors.primary
+                                  }
                                 />
                               </View>
                               <Badge
-                                label={estaFaltante ? 'Faltante' : estaDanado ? 'Dañado' : 'Completo'}
-                                color={estaFaltante ? colors.coral : estaDanado ? colors.gold : colors.primaryLight}
+                                label={
+                                  estaPorValidar
+                                    ? 'Por validar'
+                                    : estaFaltante
+                                      ? `Falta(n) ${faltan || 1}`
+                                      : estaDanado
+                                        ? 'Dañado'
+                                        : 'Completo'
+                                }
+                                color={
+                                  estaPorValidar
+                                    ? colors.gold
+                                    : estaFaltante
+                                      ? colors.coral
+                                      : estaDanado
+                                        ? colors.gold
+                                        : colors.primaryLight
+                                }
                               />
                             </View>
 
                             <Text style={styles.invCardNombre} numberOfLines={2}>
                               {item.nombre}
                             </Text>
-                            <Text style={styles.invCardCantidad}>Cantidad: x{item.cantidad}</Text>
                             <Text style={styles.invCardCat}>{CATEGORIA_LABELS[item.categoria] || item.categoria}</Text>
 
-                            {/* Detalle si está solicitado */}
-                            {estaFaltante && (item.solicitado_en || item.solicitado_por || item.notas) ? (
+                            {/* CONTADOR DE ARTÍCULOS */}
+                            <View style={[styles.contadorBox, estaFaltante && styles.contadorFaltanteBox]}>
+                              <Text style={styles.contadorText}>
+                                Cantidad: {cantActual} de {cantEsperada} requeridos
+                              </Text>
+                              {estaFaltante ? (
+                                <Text style={styles.contadorFaltanteText}>
+                                  ⚠️ Faltan {faltan} unidad(es)
+                                </Text>
+                              ) : null}
+                            </View>
+
+                            {/* Detalle si está en revisión o solicitado */}
+                            {estaPorValidar ? (
+                              <View style={styles.porValidarBox}>
+                                <Text style={styles.porValidarText}>
+                                  Marcado como repuesto por {item.repuesto_por?.nombre ? `${item.repuesto_por.nombre} ${item.repuesto_por.apellido || ''}`.trim() : (item.solicitado_por?.nombre || 'la encargada')}.
+                                  {puedeGestionar ? ' Requiere tu validación.' : ' Esperando validación de coordinación.'}
+                                </Text>
+                              </View>
+                            ) : null}
+
+                            {estaFaltante && !estaPorValidar && (item.solicitado_en || item.solicitado_por || item.notas) ? (
                               <View style={styles.invSolicitadoBox}>
                                 <Text style={styles.invSolicitadoMeta} numberOfLines={2}>
-                                  Solicitado por {item.solicitado_por?.nombre || 'Personal'}
+                                  Marcado como faltante por {item.solicitado_por?.nombre ? `${item.solicitado_por.nombre} ${item.solicitado_por.apellido || ''}`.trim() : 'Personal'}
                                 </Text>
                                 {item.notas ? (
                                   <Text style={styles.invSolicitadoNotas} numberOfLines={2}>
@@ -685,32 +778,82 @@ export default function RoomDetailScreen({ route }) {
                             ) : null}
                           </View>
 
-                          {/* Acciones del artículo */}
+                          {/* ACCIONES DEL ARTÍCULO */}
                           <View style={styles.invCardBottom}>
-                            {estaFaltante ? (
-                              <Button
-                                title=" Marcar como repuesto"
-                                variant="primary"
-                                onPress={() => reponerItem(item.id)}
-                                disabled={busy}
-                              />
+                            {estaPorValidar ? (
+                              puedeGestionar ? (
+                                <Button
+                                  title="✅ Validar reposición"
+                                  variant="primary"
+                                  onPress={() => validarReposicionItem(item.id)}
+                                  disabled={busy}
+                                />
+                              ) : (
+                                <Text style={styles.esperandoValidacionText}>
+                                  ⏳ Pendiente de validación por recepción
+                                </Text>
+                              )
+                            ) : estaFaltante ? (
+                              <View>
+                                {room?.asignada_a?.id === user?.id ? (
+                                  <Button
+                                    title="Marcar como repuesto"
+                                    variant="primary"
+                                    onPress={() => marcarRepuestoItem(item.id)}
+                                    disabled={busy}
+                                  />
+                                ) : (
+                                  <Text style={styles.invOperarioHint}>
+                                    {room?.asignada_a
+                                      ? `Solo ${room.asignada_a.nombre} puede marcarlo como repuesto.`
+                                      : 'Asigne la habitación para poder marcar la reposición.'}
+                                  </Text>
+                                )}
+                              </View>
                             ) : (
                               <>
                                 {!pidiendo ? (
                                   <Button
-                                    title=" Solicitar reposición "
+                                    title="⚠️ Reportar faltante"
                                     variant="secondary"
                                     onPress={() => {
                                       setSolicitandoId(item.id);
+                                      setCantidadActualReporte(Math.max(0, cantActual - 1));
                                       setNotasSolicitud('');
                                     }}
                                     disabled={busy}
                                   />
                                 ) : (
                                   <View style={styles.solicitarFormWrap}>
+                                    <Text style={styles.solicitarFormLabel}>
+                                      ¿Cuántas unidades hay físicamente?
+                                    </Text>
+                                    <View style={styles.stepperRow}>
+                                      <TouchableOpacity
+                                        style={styles.stepperBtn}
+                                        onPress={() => setCantidadActualReporte(Math.max(0, cantidadActualReporte - 1))}
+                                      >
+                                        <Ionicons name="remove" size={18} color={colors.primary} />
+                                      </TouchableOpacity>
+                                      <View style={{ alignItems: 'center' }}>
+                                        <Text style={styles.stepperValueText}>
+                                          {cantidadActualReporte} / {cantEsperada}
+                                        </Text>
+                                        <Text style={styles.stepperFaltanText}>
+                                          Faltan: {Math.max(0, cantEsperada - cantidadActualReporte)}
+                                        </Text>
+                                      </View>
+                                      <TouchableOpacity
+                                        style={styles.stepperBtn}
+                                        onPress={() => setCantidadActualReporte(Math.min(cantEsperada - 1, cantidadActualReporte + 1))}
+                                      >
+                                        <Ionicons name="add" size={18} color={colors.primary} />
+                                      </TouchableOpacity>
+                                    </View>
+
                                     <Input
                                       label="Observación:"
-                                      placeholder="Ej. Faltan 2..."
+                                      placeholder="Ej. Falta reponer tras check-out..."
                                       value={notasSolicitud}
                                       onChangeText={setNotasSolicitud}
                                     />
@@ -719,7 +862,7 @@ export default function RoomDetailScreen({ route }) {
                                         <Button
                                           title="Confirmar"
                                           variant="danger"
-                                          onPress={() => solicitarItem(item.id)}
+                                          onPress={() => reportarFaltanteItem(item.id)}
                                           loading={busy}
                                           disabled={busy}
                                         />
@@ -1180,5 +1323,105 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 11,
     color: colors.coral,
+  },
+  invCardItemPorValidar: {
+    borderColor: `${colors.gold}AA`,
+    backgroundColor: '#FFFDF6',
+    borderTopWidth: 3,
+    borderTopColor: colors.gold,
+  },
+  contadorBox: {
+    backgroundColor: colors.surfaceBrand,
+    padding: 8,
+    borderRadius: radius.sm,
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  contadorFaltanteBox: {
+    backgroundColor: '#FFEFEF',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.coral,
+  },
+  contadorText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 12,
+    color: colors.primary,
+  },
+  contadorFaltanteText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    color: colors.coral,
+    marginTop: 2,
+  },
+  porValidarBox: {
+    backgroundColor: '#FFF8E6',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.gold,
+    padding: 8,
+    borderRadius: radius.sm,
+    marginVertical: 6,
+  },
+  porValidarText: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: '#8A6200',
+  },
+  solicitarFormLabel: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 12,
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    marginVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  stepperBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceBrand,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperValueText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 15,
+    color: colors.primary,
+  },
+  stepperFaltanText: {
+    fontFamily: fonts.body,
+    fontSize: 10,
+    color: colors.coral,
+  },
+  invActionsHeader: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginBottom: spacing.sm,
+  },
+  esperandoValidacionText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    color: '#8A6200',
+    textAlign: 'center',
+    paddingVertical: 6,
+  },
+  invOperarioHint: {
+    fontFamily: fonts.body,
+    fontSize: 10,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 2,
   },
 });
