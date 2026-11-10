@@ -31,6 +31,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
+    if (loading) return;
     setError('');
     if (!validarRut(rut)) {
       setError('RUT inválido. Revíselo e intente nuevamente.');
@@ -90,6 +91,8 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 autoComplete="current-password"
+                returnKeyType="go"
+                onSubmitEditing={submit}
               />
 
               {error ? <ErrorBanner message={error} /> : null}

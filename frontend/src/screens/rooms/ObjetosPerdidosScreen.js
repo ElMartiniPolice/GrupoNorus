@@ -143,7 +143,7 @@ export default function ObjetosPerdidosScreen() {
         ) : null}
 
         {!objetos && !error ? <Loading label="Cargando objetos…" /> : null}
-        {objetos?.length === 0 && !error ? <EmptyState message="Aún no hay objetos encontrados registrados." icon="cube-outline" /> : null}
+        {objetos?.length === 0 && !error ? <EmptyState message="Aún no hay objetos encontrados registrados." /> : null}
         <View style={styles.list}>
           {(objetos || []).map((objeto) => (
             <Card key={objeto.id} style={styles.itemCard}>
