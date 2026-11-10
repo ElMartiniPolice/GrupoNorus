@@ -17,6 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import { roomService } from '../../services/roomService';
 import { evidenceService } from '../../services/evidenceService';
 import { colors, fonts, spacing, radius, roomEstadoColor } from '../../theme';
+import checklistTypes from '../../checklistTypes';
 import {
   Badge,
   Button,
@@ -31,6 +32,7 @@ import {
   formatFecha,
   makeErrorHandler,
 } from '../../components/ui';
+import ChecklistComponent from '../../components/ChecklistComponent';
 import { habLabel } from '../../utils/labels';
 import { resolveMediaUrl } from '../../utils/media';
 
@@ -82,6 +84,10 @@ export default function RoomDetailScreen({ route }) {
   const puedeCambiarEstado = puedeGestionar || esOperario;
 
   const [room, setRoom] = useState(null);
+  const [checklistHabitacion, setChecklistHabitacion] = useState([]);
+  const [checklistArea, setChecklistArea] = useState([]);
+  const [checklistVisible, setChecklistVisible] = useState(false);
+  const [checklistTipo, setChecklistTipo] = useState('');
   const [cambios, setCambios] = useState([]);
   const [foto, setFoto] = useState(null);
   const [estadias, setEstadias] = useState([]);
@@ -119,12 +125,28 @@ export default function RoomDetailScreen({ route }) {
       setEvidencias(Array.isArray(ev) ? ev : []);
       setCambios(Array.isArray(ca) ? ca : []);
       setInventario(Array.isArray(inv) ? inv : []);
-      setError('');
-    } catch (e) {
-      const m = onError(e);
-      if (m) setError(m);
-    }
-  }, [id, onError]);
+
+        /** HU-10/HU-11: Cargar checklist según tipo de habitación */
+        if (r && r.tipo) {
+          const tipoHabitacion = r.tipo.nombre || r.tipo || 'ESTANDAR';
+          const checklist = checklistTypes.getChecklistHabitacion(tipoHabitacion);
+          setChecklistHabitacion(checklistTypes.crearEstadoChecklist(checklist));
+          setChecklistTipo(tipoHabitacion);
+        }
+
+        /** HU-12: Cargar checklist del área si el usuario es de ese área */
+        if (r && r.area_nombre && (esRecepcion || esOperario)) {
+          const area = r.area_nombre;
+          const areaChecklist = checklistTypes.getChecklistArea(area);
+          setChecklistArea(checklistTypes.crearEstadoChecklist(areaChecklist));
+        }
+
+        setError('');
+      } catch (e) {
+        const m = onError(e);
+        if (m) setError(m);
+      }
+    }, [id, onError, esRecepcion, esOperario]);
 
   useFocusEffect(
     useCallback(() => {
@@ -220,14 +242,33 @@ export default function RoomDetailScreen({ route }) {
 
   const cambiarEstado = (nuevo) => {
     if (room.estado === nuevo) return;
-    accion(
-      async () => {
-        await roomService.cambiarEstado(id, nuevo, foto);
-        setFoto(null);
-      },
-      'Estado actualizado.',
-    );
-  };
+
+      /** HU-11: Validar checklist antes de permitir DISPONIBLE */
+      if (nuevo === 'DISPONIBLE' && checklistTipo) {
+        const requiere = checklistTypes.requiereChecklistParaDisponible(checklistTipo);
+        if (requiere && !todosCompletados(checklistHabitacion)) {
+          setMsg('Debe completar el checklist de limpieza antes de cambiar el estado a Disponible.');
+          return;
+        }
+      }
+
+      accion(
+        async () => {
+          await roomService.cambiarEstado(id, nuevo, foto);
+          setFoto(null);
+          /** HU-11: Después de cambiar a LIMPIEZA, mostrar checklist */
+          if (nuevo === 'LIMPIEZA') {
+            setChecklistVisible(true);
+          }
+          /** HU-11: Después de completar, marcar checklist como done */
+          if (nuevo === 'DISPONIBLE') {
+            setChecklistVisible(false);
+            setMsg('Habitación disponible. Checklist verificado.');
+          }
+        },
+        'Estado actualizado.',
+      );
+    };
 
   const solicitarItem = (itemId) => {
     accion(

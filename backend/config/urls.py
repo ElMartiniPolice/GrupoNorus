@@ -1,4 +1,6 @@
-"""URLs principales — Grupo Norus API."""
+"""
+URLs principales — Grupo Norus API.
+"""
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -10,7 +12,7 @@ urlpatterns = [
     path('api/users/', include('apps.users.urls_users')),
     path('api/rooms/', include('apps.rooms.urls')),
     path('api/tasks/', include('apps.tasks.urls')),
-    path('api/incidents/', include('apps.incidents.urls')),
+    path('api/incidencias/', include('apps.incidents.urls')),
     path('api/evidence/', include('apps.evidence.urls')),
     path('api/notifications/', include('apps.notifications.urls')),
     path('api/core/', include('apps.core.urls')),

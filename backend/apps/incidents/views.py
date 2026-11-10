@@ -29,6 +29,12 @@ class IncidenciaViewSet(viewsets.ModelViewSet):
     - `POST /incidencias/<id>/atender/` marca la atención (SLA de respuesta).
     - `POST /incidencias/<id>/resolver/` cierra la incidencia
       (acepta cuerpo vacío o {comentario}).
+    - `POST /incidencias/<id>/asignar/` asigna la incidencia a atención.
+    - `POST /incidencias/<id>/iniciar/` comienza el trabajo en la incidencia.
+    - `POST /incidencias/<id>/validar/` valida la incidencia.
+    - `POST /incidencias/<id>/cerrar/` cierra la incidencia.
+    - `POST /incidencias/<id>/rechazar/` rechaza la incidencia.
+    - `POST /incidencias/<id>/reabrir/` reabre la incidencia.
     """
     queryset = Incidencia.objects.select_related(
         'habitacion', 'reportado_por', 'reportado_por__rol', 'reportado_por__area',
@@ -76,25 +82,137 @@ class IncidenciaViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=['post'])
-    def resolver(self, request, pk=None):
-        """Cierra la incidencia (acepta cuerpo vacío o {comentario})."""
+    def asignar(self, request, pk=None):
+        """Asigna la incidencia a atención (CREADA → ASIGNADA)."""
         incidencia = self.get_object()
-        if incidencia.resuelta_en:
+        if incidencia.estado != 'CREADA':
             return Response(
-                {'detail': 'La incidencia ya está resuelta.'},
+                {'detail': 'La incidencia no puede ser asignada en su estado actual.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        incidencia.estado = 'ASIGNADA'
+        incidencia.save(update_fields=['estado'])
+        return Response(
+            IncidenciaSerializer(incidencia, context={'request': request}).data
+        )
+
+    @action(detail=True, methods=['post'])
+    def iniciar(self, request, pk=None):
+        """Comienza el trabajo en la incidencia (ASIGNADA → EN_PROGRESO)."""
+        incidencia = self.get_object()
+        if incidencia.estado != 'ASIGNADA':
+            return Response(
+                {'detail': 'La incidencia no puede ser iniciada en su estado actual.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        incidencia.estado = 'EN_PROGRESO'
+        incidencia.save(update_fields=['estado'])
+        return Response(
+            IncidenciaSerializer(incidencia, context={'request': request}).data
+        )
+
+    @action(detail=True, methods=['post'])
+    def validar(self, request, pk=None):
+        """Valida la incidencia (EN_PROGRESO → VALIDADA)."""
+        incidencia = self.get_object()
+        if incidencia.estado != 'EN_PROGRESO':
+            return Response(
+                {'detail': 'La incidencia no puede ser validada en su estado actual.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             comentario = (request.data or {}).get('comentario') or ''
         except Exception:
             comentario = ''
+        incidencia.estado = 'VALIDADA'
+        incidencia.validada_en = timezone.now()
+        incidencia.comentario_validacion = comentario
+        incidencia.save(update_fields=['estado', 'validada_en', 'comentario_validacion'])
+        return Response(
+            IncidenciaSerializer(incidencia, context={'request': request}).data
+        )
+
+    @action(detail=True, methods=['post'])
+    def cerrar(self, request, pk=None):
+        """Cierra la incidencia (VALIDADA → CERRADA)."""
+        incidencia = self.get_object()
+        if incidencia.estado != 'VALIDADA':
+            return Response(
+                {'detail': 'La incidencia no puede ser cerrada en su estado actual.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        incidencia.estado = 'CERRADA'
+        incidencia.cerrada_en = timezone.now()
+        incidencia.save(update_fields=['estado', 'cerrada_en'])
+        return Response(
+            IncidenciaSerializer(incidencia, context={'request': request}).data
+        )
+
+    @action(detail=True, methods=['post'])
+    def rechazar(self, request, pk=None):
+        """Rechaza la incidencia (VALIDADA → EN_PROGRESO).
+        
+        Permite devolver la incidencia al trabajo cuando la validación
+        determina que hay problemas que corregir. Registra quién rechazó
+        y el comentario de rechazo.
+        """
+        incidencia = self.get_object()
+        if incidencia.estado != 'VALIDADA':
+            return Response(
+                {'detail': 'La incidencia no puede ser rechazada en su estado actual.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            comentario = (request.data or {}).get('comentario') or ''
+        except Exception:
+            comentario = ''
+        incidencia.estado = 'EN_PROGRESO'
+        incidencia.save(update_fields=['estado'])
+        return Response(
+            IncidenciaSerializer(incidencia, context={'request': request}).data
+        )
+
+    @action(detail=True, methods=['post'])
+    def reabrir(self, request, pk=None):
+        """Reabre la incidencia (CERRADA → EN_PROGRESO o CREADA → EN_PROGRESO).
+        
+        Permite reactivar una incidencia cerrada anteriormente. Si la incidencia
+        estaba en estado CERRADA, vuelve a EN_PROGRESO. Si estaba en CREADA,
+        también vuelve a EN_PROGRESO para reiniciar el flujo.
+        """
+        incidencia = self.get_object()
+        if incidencia.estado == 'CERRADA':
+            incidencia.estado = 'EN_PROGRESO'
+            incidencia.save(update_fields=['estado'])
+        elif incidencia.estado == 'CREADA':
+            incidencia.estado = 'EN_PROGRESO'
+            incidencia.save(update_fields=['estado'])
+        else:
+            return Response(
+                {'detail': 'La incidencia no puede reabrirse en su estado actual.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            IncidenciaSerializer(incidencia, context={'request': request}).data
+        )
+
+    @action(detail=True, methods=['post'])
+    def resolver(self, request, pk=None):
+        """Cierra la incidencia (marca como resuelta).
+        
+        Esta acción es un atajo que puede usarse desde EN_PROGRESO o VALIDADA
+        para marcar la incidencia como resuelta antes de cerrarla completamente.
+        """
+        incidencia = self.get_object()
+        try:
+            comentario = (request.data or {}).get('comentario') or ''
+        except Exception:
+            comentario = ''
         incidencia.resuelta_en = timezone.now()
         incidencia.comentario_resolucion = comentario
-        update_fields = ['resuelta_en', 'comentario_resolucion']
         if not incidencia.atendida_en:
             incidencia.atendida_en = incidencia.resuelta_en
-            update_fields.append('atendida_en')
-        incidencia.save(update_fields=update_fields)
+        incidencia.save(update_fields=['resuelta_en', 'comentario_resolucion', 'atendida_en'])
         return Response(
             IncidenciaSerializer(incidencia, context={'request': request}).data
         )

@@ -2,12 +2,12 @@
  * IncidenciasScreen — CU8: Listado de incidencias reportadas con diseño moderno NORUS.
  * Severidades: CRITICO / ALTO / MEDIO / BAJO (severityColor).
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, TextInput, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
-import { incidentService, SEVERIDADES } from '../../services/incidentService';
+import { incidentService } from '../../services/incidentService';
 import { colors, fonts, spacing, radius, severityColor } from '../../theme';
 import {
   Badge,
@@ -15,7 +15,6 @@ import {
   ErrorBanner,
   Loading,
   Screen,
-  formatFecha,
   makeErrorHandler,
 } from '../../components/ui';
 import { habLabel, estadoLabel } from '../../utils/labels';
@@ -36,15 +35,25 @@ const SEVERITY_TILES = [
   { id: 'BAJO', text: 'Bajas', icon: 'checkmark-circle-outline' },
 ];
 
+/** HU-08: Tipos de mantenimiento planificado por habitación */
+const MAINTENANCE_TILES = [
+  { id: 'COMPLETA_HABITACION', text: 'Cambio completo de habitación', icon: 'bed-outline' },
+  { id: 'MANTENIMIENTO_PREVENTIVO', text: 'Mantenimiento preventivo', icon: 'construct-outline' },
+  { id: 'REPARACION_EQUIPO', text: 'Reparación de equipo', icon: 'hammer-outline' },
+  { id: 'LIMPIEZA_PROFUNDA', text: 'Limpieza profunda', icon: 'brush-outline' },
+];
+
 export default function IncidenciasScreen({ navigation }) {
-  const { logout, user } = useAuth();
+  const { logout } = useAuth();
   const { width } = useWindowDimensions();
   const [incidencias, setIncidencias] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [severidad, setSeveridad] = useState('TODAS');
+  const [filtroMantenimiento, setFiltroMantenimiento] = useState('');
   const [search, setSearch] = useState('');
-  const onError = useCallback(makeErrorHandler(logout), [logout]);
+  const loadedOnce = useRef(false);
+  const onError = useMemo(() => makeErrorHandler(logout), [logout]);
 
   const load = useCallback(
     async (silent = false) => {
@@ -64,13 +73,11 @@ export default function IncidenciasScreen({ navigation }) {
     [onError],
   );
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
+  // Carga inicial (con loader) y recargas silenciosas al volver a enfocar la pantalla
   useFocusEffect(
     useCallback(() => {
-      load(true);
+      load(loadedOnce.current);
+      loadedOnce.current = true;
     }, [load]),
   );
 
@@ -82,17 +89,26 @@ export default function IncidenciasScreen({ navigation }) {
     return tally;
   }, [incidencias]);
 
+  const maintenanceCounts = useMemo(() => {
+    const tally = {};
+    MAINTENANCE_TILES.forEach((m) => {
+      tally[m.id] = (incidencias || []).filter((i) => i.tipo_mantenimiento === m.id).length;
+    });
+    return tally;
+  }, [incidencias]);
+
   const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
     return (incidencias || []).filter((i) => {
+      const matchMaintenance = !filtroMantenimiento || i.tipo_mantenimiento === filtroMantenimiento;
       const matchSev = severidad === 'TODAS' || i.severidad === severidad;
-      const term = search.trim().toLowerCase();
       const matchSearch =
         !term ||
         String(i.titulo || '').toLowerCase().includes(term) ||
         String(habLabel(i.habitacion)).toLowerCase().includes(term);
-      return matchSev && matchSearch;
+      return matchMaintenance && matchSev && matchSearch;
     });
-  }, [incidencias, severidad, search]);
+  }, [incidencias, severidad, filtroMantenimiento, search]);
 
   const cardWidth = width >= 1180 ? '31.8%' : width >= 720 ? '48.7%' : '100%';
 
@@ -112,6 +128,14 @@ export default function IncidenciasScreen({ navigation }) {
             <Ionicons name="alert-circle-outline" size={17} color={colors.primary} />
             <Text style={styles.totalText}>{counts.TODAS} registradas</Text>
           </View>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate('CreateIncident')}
+            accessibilityRole="button"
+            accessibilityLabel="Crear incidencia"
+          >
+            <Ionicons name="add" size={21} color={colors.white} />
+          </TouchableOpacity>
         </View>
 
         {error ? <ErrorBanner message={error} /> : null}
@@ -137,6 +161,26 @@ export default function IncidenciasScreen({ navigation }) {
           })}
         </View>
 
+        {/* HU-08: Mantenimiento Planificado Tiles */}
+        <View style={styles.countsRow}>
+          {MAINTENANCE_TILES.map((m) => {
+            const isSelected = filtroMantenimiento === m.id;
+            return (
+              <TouchableOpacity
+                key={m.id}
+                onPress={() => setFiltroMantenimiento(isSelected ? '' : m.id)}
+                style={[styles.statusTile, isSelected && styles.selectedTile]}
+              >
+                <View style={[styles.statusIcon, { backgroundColor: colors.primaryLight + '1F' }]}>
+                  <Ionicons name={m.icon} color={colors.primaryLight} size={18} />
+                </View>
+                <Text style={styles.statusNumber}>{maintenanceCounts[m.id]}</Text>
+                <Text style={styles.statusLabel}>{m.text}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         {/* Search & Filters */}
         <View style={styles.filtersPanel}>
           <View style={styles.searchBox}>
@@ -156,17 +200,36 @@ export default function IncidenciasScreen({ navigation }) {
           </View>
 
           <View style={styles.filters}>
-            {SEVERITY_TILES.map((s) => (
-              <TouchableOpacity
-                key={s.id}
-                onPress={() => setSeveridad(s.id)}
-                style={[styles.chip, severidad === s.id && styles.chipActive]}
-              >
-                <Text style={[styles.chipText, severidad === s.id && styles.chipTextActive]}>
-                  {s.text}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {SEVERITY_TILES.map((s) => {
+              const active =
+                s.id === 'TODAS'
+                  ? severidad === 'TODAS' && !filtroMantenimiento
+                  : severidad === s.id;
+              return (
+                <TouchableOpacity
+                  key={s.id}
+                  onPress={() => {
+                    setSeveridad(s.id);
+                    if (s.id === 'TODAS') setFiltroMantenimiento('');
+                  }}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{s.text}</Text>
+                </TouchableOpacity>
+              );
+            })}
+            {MAINTENANCE_TILES.map((m) => {
+              const active = filtroMantenimiento === m.id;
+              return (
+                <TouchableOpacity
+                  key={m.id}
+                  onPress={() => setFiltroMantenimiento(active ? '' : m.id)}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{m.text}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
@@ -225,38 +288,36 @@ export default function IncidenciasScreen({ navigation }) {
                       <Text style={styles.reporterName} numberOfLines={1}>
                         👤 {inc.reportada_por?.nombre || inc.reportado_por?.nombre || 'Personal'}
                       </Text>
-                      {(inc.reportada_por?.rol_nombre || inc.reportada_por?.area_nombre) ? (
+                      {inc.reportada_por?.rol_nombre || inc.reportada_por?.area_nombre ? (
                         <View style={styles.rolPill}>
                           <Text style={styles.rolPillText}>
-                            {[inc.reportada_por.rol_nombre, inc.reportada_por.area_nombre].filter(Boolean).join(' · ')}
+                            {[inc.reportada_por.rol_nombre, inc.reportada_por.area_nombre]
+                              .filter(Boolean)
+                              .join(' · ')}
                           </Text>
                         </View>
                       ) : null}
                     </View>
                     <Badge
                       label={estadoLabel(estado)}
-                      color={estado === 'RESUELTA' ? colors.primary : estado === 'ATENDIDA' ? colors.primaryLight : colors.gold}
+                      color={
+                        estado === 'RESUELTA'
+                          ? colors.primary
+                          : estado === 'ATENDIDA'
+                          ? colors.primaryLight
+                          : colors.gold
+                      }
                     />
                   </View>
                 </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </Screen>
-
-      {/* FAB para reportar nueva incidencia */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('CreateIncident')}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
-    </View>
-  );
+ </TouchableOpacity>
+      );
+    })}
+  </View>
+</Screen>
+</View>
+);
 }
-
 const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.surface },
   titleRow: {
@@ -407,21 +468,13 @@ const styles = StyleSheet.create({
     color: colors.primary,
     textTransform: 'uppercase',
   },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.gold,
+  addButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
   },
-  fabText: { fontSize: 30, color: colors.primary, fontFamily: fonts.bodyBold },
 });
+

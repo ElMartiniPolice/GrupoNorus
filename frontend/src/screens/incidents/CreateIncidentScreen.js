@@ -1,6 +1,6 @@
 /**
  * CreateIncidentScreen — CU8: Reportar incidencia con diseño moderno NORUS.
- * POST /incidents/incidencias/ {titulo, descripcion, habitacion, severidad, requiere_evidencia}.
+ * POST /incidencias/incidencias/ {titulo, descripcion, habitacion, severidad, requiere_evidencia}.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -19,7 +19,7 @@ import {
 } from '../../components/ui';
 import { slaText } from '../../utils/sla';
 
-export default function CreateIncidentScreen({ navigation }) {
+export default function CreateIncidentScreen({ navigation, commonAreas = [] }) {
   const { logout } = useAuth();
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -50,22 +50,25 @@ export default function CreateIncidentScreen({ navigation }) {
     if (tipoUbicacion === 'HABITACION' && !habitacion) {
       return setError('Seleccione la habitación afectada o elija Área General.');
     }
-    setSaving(true);
-    try {
-      await incidentService.create({
-        titulo: titulo.trim(),
-        descripcion: descripcion.trim(),
-        habitacion: tipoUbicacion === 'HABITACION' ? habitacion : null,
-        severidad,
-        requiere_evidencia: requiereEvidencia,
-      });
-      navigation.goBack();
-    } catch (e) {
-      setError(onError(e) || '');
-    } finally {
-      setSaving(false);
-    }
-  };
+      if (tipoUbicacion === 'GENERAL' && !habitacion) {
+        return setError('Seleccione el área común afectada.');
+      }
+      setSaving(true);
+      try {
+        await incidentService.create({
+          titulo: titulo.trim(),
+          descripcion: descripcion.trim(),
+          habitacion: tipoUbicacion === 'HABITACION' ? habitacion : null,
+          severidad,
+          requiere_evidencia: requiereEvidencia,
+        });
+        navigation.goBack();
+      } catch (e) {
+        setError(onError(e) || '');
+      } finally {
+        setSaving(false);
+      }
+    };
 
   return (
     <Screen>
@@ -109,7 +112,18 @@ export default function CreateIncidentScreen({ navigation }) {
           labelKey="nombre"
         />
 
-        {tipoUbicacion === 'HABITACION' && (
+                {tipoUbicacion === 'GENERAL' && commonAreas.length > 0 && (
+                  <ChipSelect
+                    label="Área común"
+                    options={commonAreas}
+                    value={habitacion}
+                    onChange={setHabitacion}
+                    keyBy="id"
+                    labelKey="nombre"
+                  />
+                )}
+
+                {tipoUbicacion === 'HABITACION' && (
           <ChipSelect
             label="Habitación afectada"
             options={habitaciones}

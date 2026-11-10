@@ -107,6 +107,16 @@ export default function TasksScreen({ navigation }) {
             <Ionicons name="clipboard-outline" size={17} color={colors.primary} />
             <Text style={styles.totalText}>{counts.TODAS} tareas</Text>
           </View>
+          {!esOperario ? (
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => navigation.navigate('CreateTask')}
+              accessibilityRole="button"
+              accessibilityLabel="Crear tarea"
+            >
+              <Ionicons name="add" size={21} color={colors.white} />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {error ? <ErrorBanner message={error} /> : null}
@@ -238,17 +248,6 @@ export default function TasksScreen({ navigation }) {
           })}
         </View>
       </Screen>
-
-      {/* FAB para crear nueva tarea si no es operario */}
-      {!esOperario && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => navigation.navigate('CreateTask')}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.fabText}>+</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
@@ -421,21 +420,12 @@ const styles = StyleSheet.create({
     color: colors.primary,
     textTransform: 'uppercase',
   },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.gold,
+  addButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
   },
-  fabText: { fontSize: 30, color: colors.primary, fontFamily: fonts.bodyBold },
 });
